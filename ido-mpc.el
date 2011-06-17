@@ -55,7 +55,10 @@ check will not be periodically performed."
   (ido-mpc-update-state))
 
 (defun ido-mpc-update-state ()
-  (setq ido-mpc-state (plist-get (mpd-get-status ido-mpc-conn) 'state)))
+  (setq ido-mpc-state (plist-get (mpd-get-status ido-mpc-conn) 'state))
+  (unless ido-mpc-state
+    (ido-mpc-connect)
+    (setq ido-mpc-state (plist-get (mpd-get-status ido-mpc-conn) 'state))))
 
 (defun ido-mpc-stream-play ()
   (interactive)
@@ -64,8 +67,7 @@ check will not be periodically performed."
 
 (defun ido-mpc-play (&optional pos)
   (interactive)
-  (unless ido-mpc-conn
-    (ido-mpc-connect))
+  (ido-mpc-update-state)
   (if pos
       (mpd-play ido-mpc-conn pos)
     (mpd-play ido-mpc-conn))
@@ -74,8 +76,7 @@ check will not be periodically performed."
 
 (defun ido-mpc-pause ()
   (interactive)
-  (unless ido-mpc-conn
-    (ido-mpc-connect))
+  (ido-mpc-update-state)
   (if (eq ido-mpc-state 'play)
       (mpd-pause ido-mpc-conn t)
     (if (eq ido-mpc-state 'stop)
