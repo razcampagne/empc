@@ -51,7 +51,7 @@
 
 (defvar empc-process nil)
 (defvar empc-queue nil)
-(defvar empc-status-regexp
+(defvar empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
 return at the end of a request.")
@@ -68,6 +68,10 @@ return at the end of a request.")
   (when empc-verbose
     (message "empc: %s" msg)))
 
+(defun empc-response-store (closure msg)
+  "Store the response into CLOSURE."
+  (defvar youhou msg))
+
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
   (unless (and empc-process
@@ -79,7 +83,9 @@ return at the end of a request.")
 	(set-process-query-on-exit-flag empc-process nil)
       (process-kill-without-query empc-process))
     (set-process-coding-system empc-process 'utf-8-unix 'utf-8-unix)
-    (setq empc-queue (tq-create empc-process))))
+    (setq empc-queue (tq-create empc-process))
+    (when empc-server-password
+      (empc-send (concat "password " empc-server-password)))))
 
 (defun empc-close-connection ()
   "Closes connection between empc and mpd."
@@ -88,11 +94,34 @@ return at the end of a request.")
 	     (eq (process-status empc-process) 'open))
     (empc-send "close")))
 
-(defun empc-send (command)
+(defun empc-send (command &optional fn closure delay)
   "Send COMMAND to the mpd server."
   (empc-ensure-connected)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
-  (tq-enqueue empc-queue command empc-status-regexp nil 'empc-response-message t))
+  (tq-enqueue empc-queue command empc-response-regexp
+  	      (if closure
+  		  closure
+  		nil)
+  	      (if fn
+  		  fn
+  		'empc-response-message)
+  	      (if delay
+  		  delay
+  		t)))
+
+(defun empc-update-status ()
+  "Retreive the current status and update EMPC-CURRENT-STATUS."
+  (empc-send "status"))
+
+(defmacro define-simple-command (command)
+  "Define a simple command that doesn't require heavy response processing."
+  `(defun ,(intern (concat "empc-send-" command)) ()
+     ,(concat "Send " command " to the server.")
+     (empc-send ,command)))
+
+(define-simple-command "status")
+(define-simple-command "play")
+(define-simple-command "stop")
 
 (provide 'empc)
