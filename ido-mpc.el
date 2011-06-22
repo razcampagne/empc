@@ -47,6 +47,8 @@ check will not be periodically performed."
 
 (defun ido-mpc-connect ()
   (interactive)
+  (when ido-mpc-conn
+    (mpd-close-connection ido-mpc-conn))
   (setq ido-mpc-conn (mpd-conn-new ido-mpc-server-url
 				   ido-mpc-server-port
 				   1 nil))
