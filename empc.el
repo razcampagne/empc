@@ -73,9 +73,10 @@ return at the end of a request.")
   (when empc-verbose
     (message "empc: %s" msg)))
 
-(defun empc-response-store (closure msg)
-  "Store the response into CLOSURE."
-  (defvar youhou msg))
+(defun empc-response-parse-status (closure msg)
+  "Parse the response into a plist."
+  (let ((data (split-string msg "\n" t)))
+    data))
 
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
@@ -117,7 +118,7 @@ return at the end of a request.")
 
 (defun empc-update-status ()
   "Retreive the current status and update EMPC-CURRENT-STATUS."
-  (empc-send "status"))
+  (empc-send "status" 'empc-response-parse-status))
 
 (defmacro define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
