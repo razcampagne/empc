@@ -140,5 +140,14 @@ return at the end of a request.")
 
 (define-simple-command "play")
 (define-simple-command "stop")
+(define-simple-command "next")
+(define-simple-command "previous")
+
+(define-toggle-command "consume")
+(define-toggle-command "random")
+(define-toggle-command "repeat")
+(define-toggle-command "single")
+(define-toggle-command "xfade")
+(define-toggle-command "pause")
 
 (provide 'empc)
