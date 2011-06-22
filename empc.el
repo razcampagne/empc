@@ -34,6 +34,11 @@
 		 string)
   :group 'empc)
 
+(defcustom empc-default-crossfade 5
+  "The default crossfade to apply."
+  :type 'integer
+  :group 'empc)
+
 (defgroup empc-debug nil
   "Customize group for debugging empc."
   :group 'empc)
