@@ -120,7 +120,24 @@ return at the end of a request.")
      ,(concat "Send " command " to the server.")
      (empc-send ,command)))
 
-(define-simple-command "status")
+(defmacro define-toggle-command (command)
+  "Define a command that toggle a state."
+  `(defun ,(intern (concat "empc-send-" command)) (&optional state)
+     ,(concat "Send " command " to the server.")
+     (if state
+	 ,(if (memq command '("consume" "random" "repeat" "single" "pause"))
+	      `(empc-send (concat ,command " " (int-to-string state)))
+	    `(empc-send (concat ,command " " state)))
+       (let ((status (plist-get (empc-update-status) ,(intern command))))
+	 ,(if (memq command '("consume" "random" "repeat" "single" "pause"))
+	      `(empc-send (concat ,command " " (if (= status 1) "0" "1")))
+	    (when (string= command "xfade")
+		`(empc-send (concat ,command " " (if (= status 0)
+						     (int-to-string empc-default-crossfade)
+						   (progn
+						     (setq empc-default-crossfade status)
+						     "0"))))))))))
+
 (define-simple-command "play")
 (define-simple-command "stop")
 
