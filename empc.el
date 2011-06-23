@@ -98,7 +98,9 @@ return at the end of a request.")
   (when (and empc-process
 	     (processp empc-process)
 	     (eq (process-status empc-process) 'open))
-    (empc-send "close")))
+    (empc-send "close"))
+  (tq-close empc-queue)
+  (setq empc-process nil))
 
 (defun empc-send (command &optional fn closure delay)
   "Send COMMAND to the mpd server."
