@@ -73,6 +73,18 @@ return at the end of a request.")
   (when empc-verbose
     (message "empc: %s" msg)))
 
+(defun empc-response-parse-message (msg)
+  "Check the result code and parse the response into a plist."
+  (let* ((data (split-string msg "\n" t))
+	 (status (last data)))
+    (when (and (stringp (car data))
+	       (string-match "^OK\\( MPD \\)?" (car data)))
+      (setq data (cdr data)))
+    ;; TODO: checker le status.
+    ;; (dolist (line )
+    ;;   )
+    ))
+
 (defun empc-response-parse-status (closure msg)
   "Parse the response into a plist."
   (let ((data (split-string msg "\n" t)))
