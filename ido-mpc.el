@@ -57,6 +57,8 @@ check will not be periodically performed."
   (ido-mpc-update-state))
 
 (defun ido-mpc-update-state ()
+  (unless ido-mpc-conn
+    (ido-mpc-connect))
   (setq ido-mpc-state (plist-get (mpd-get-status ido-mpc-conn) 'state))
   (unless ido-mpc-state
     (ido-mpc-connect)
