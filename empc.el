@@ -206,12 +206,11 @@ Return nil if the line should be ignored."
 (define-simple-command "next")
 (define-simple-command "previous")
 
-
-(define-toggle-command "consume")
-(define-toggle-command "random")
-(define-toggle-command "repeat")
-(define-toggle-command "single")
-(define-toggle-command "xfade")
-(define-toggle-command "pause")
+;; (define-toggle-command "consume")
+;; (define-toggle-command "random")
+;; (define-toggle-command "repeat")
+;; (define-toggle-command "single")
+;; (define-toggle-command "xfade")
+;; (define-toggle-command "pause")
 
 (provide 'empc)
