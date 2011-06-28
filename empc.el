@@ -117,7 +117,8 @@ Return nil if the line should be ignored."
 	(put 'empc-status-plist 'time-elapsed (string-to-number (match-string 1 (cdr cell))))
 	(put 'empc-status-plist 'time-total (string-to-number (match-string 2 (cdr cell)))))
        (t (put 'empc-status-plist (intern attr) (cdr cell))))))
-  (symbol-plist 'empc-status-plist))
+  (when closure
+    (funcall closure (symbol-plist 'empc-status-plist))))
 
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
@@ -149,9 +150,7 @@ Return nil if the line should be ignored."
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
   (tq-enqueue empc-queue command empc-response-regexp
-  	      (if closure
-  		  closure
-  		nil)
+	      closure
   	      (if fn
   		  fn
   		'empc-response-message)
@@ -159,9 +158,9 @@ Return nil if the line should be ignored."
   		  delay
   		t)))
 
-(defun empc-update-status ()
+(defun empc-update-status (&optional closure)
   "Retreive the current status and update EMPC-CURRENT-STATUS."
-  (empc-send "status" 'empc-response-parse-status))
+  (empc-send "status" 'empc-response-parse-status closure))
 
 (defmacro define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
@@ -174,11 +173,11 @@ Return nil if the line should be ignored."
   `(defun ,(intern (concat "empc-send-" command)) (&optional state)
      ,(concat "Send " command " to the server.")
      (if state
-	 ,(if (memq command '("consume" "random" "repeat" "single" "pause"))
+	 ,(if (member command '("consume" "random" "repeat" "single" "pause"))
 	      `(empc-send (concat ,command " " (int-to-string state)))
 	    `(empc-send (concat ,command " " state)))
        (let ((status (plist-get (empc-update-status) ,(intern command))))
-	 ,(if (memq command '("consume" "random" "repeat" "single" "pause"))
+	 ,(if (member command '("consume" "random" "repeat" "single" "pause"))
 	      `(empc-send (concat ,command " " (if (= status 1) "0" "1")))
 	    (when (string= command "xfade")
 		`(empc-send (concat ,command " " (if (= status 0)
