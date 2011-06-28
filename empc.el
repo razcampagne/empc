@@ -185,11 +185,21 @@ Return nil if the line should be ignored."
 						   (progn
 						     (setq empc-default-crossfade status)
 						     "0"))))))))))
+(defun empc-send-pause (&optional state)
+  "Send pause to the server."
+  (interactive)
+  (if state
+      (empc-send (concat "pause " state))
+    (empc-update-status '(lambda (plist)
+			   (if (eq (plist-get plist 'state) 'play)
+			       (empc-send "pause 1")
+			     (empc-send "pause 0"))))))
 
 (define-simple-command "play")
 (define-simple-command "stop")
 (define-simple-command "next")
 (define-simple-command "previous")
+
 
 (define-toggle-command "consume")
 (define-toggle-command "random")
