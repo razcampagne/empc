@@ -73,17 +73,34 @@ return at the end of a request.")
   (when empc-verbose
     (message "empc: %s" msg)))
 
+(defun empc-response-parse-line (line)
+  "Turn the given line into a cons cell.
+Return nil if the line should be ignored."
+  (when (string-match "\\([^:\n]+\\):\\s-*\\(.+\\)" line)
+    (let ((key (match-string 1 line))
+	  (value (match-string 2 line)))
+      (if (and key value)
+	  (cons (downcase key) value)
+	nil))))
+
 (defun empc-response-parse-message (msg)
-  "Check the result code and parse the response into a plist."
-  (let* ((data (split-string msg "\n" t))
-	 (status (last data)))
-    (when (and (stringp (car data))
-	       (string-match "^OK\\( MPD \\)?" (car data)))
-      (setq data (cdr data)))
-    ;; TODO: checker le status.
-    ;; (dolist (line )
-    ;;   )
-    ))
+  "Check the result code and parse the response into an alist."
+  (save-match-data
+    (let* ((data (split-string msg "\n" t))
+	   (status (last data)))
+      (when (and (stringp (car data))
+		 (string-match "^OK\\( MPD \\)?" (car data)))
+	(setq data (cdr data)))
+      (if (and (stringp status)
+	       (string-match "^ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)" status))
+	  (cons 'error (cons (match-string 1 status)
+			     (match-string 2 status)))
+	(let ((result nil))
+	  (dolist (line data)
+	    (let ((cell (empc-response-parse-line line)))
+	      (when cell
+		(setq result (cons cell result)))))
+	  result)))))
 
 (defun empc-response-parse-status (closure msg)
   "Parse the response into a plist."
