@@ -158,6 +158,11 @@ Return nil if the line should be ignored."
   		  delay
   		t)))
 
+(defun empc-stream-start (plist)
+  (when (and empc-stream-url empc-stream-program
+	     (eq (plist-get plist 'error) nil))
+    (start-process "empc-stream" nil empc-stream-program empc-stream-url)))
+
 (defun empc-update-status (&optional closure)
   "Retreive the current status and update EMPC-CURRENT-STATUS."
   (empc-send "status" 'empc-response-parse-status closure))
