@@ -108,8 +108,8 @@ Return nil if the line should be ignored."
     (let ((attr (car cell)))
       (cond
        ((member attr '("volume" "repeat" "random" "single" "consume" "playlist"
-			    "playlistlength" "song" "songid" "nextsong" "nextsongid"
-			    "bitrate" "xfade" "mixrampdb" "mixrampdelay" "updating_db"))
+		     "playlistlength" "song" "songid" "nextsong" "nextsongid"
+		     "bitrate" "xfade" "mixrampdb" "mixrampdelay" "updating_db"))
 	(put 'empc-status-plist (intern attr) (string-to-number (cdr cell))))
        ((and (string= attr "state") (member (cdr cell) '("play" "pause" "stop")))
 	(put 'empc-status-plist 'state (intern (cdr cell))))
@@ -190,6 +190,7 @@ Return nil if the line should be ignored."
 						   (progn
 						     (setq empc-default-crossfade status)
 						     "0"))))))))))
+
 (defun empc-send-pause (&optional state)
   "Send pause to the server."
   (interactive)
