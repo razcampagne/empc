@@ -103,9 +103,21 @@ Return nil if the line should be ignored."
 	  result)))))
 
 (defun empc-response-parse-status (closure msg)
-  "Parse the response into a plist."
-  (let ((data (split-string msg "\n" t)))
-    data))
+  (setplist 'empc-status-plist nil)
+  (dolist (cell (empc-response-parse-message msg))
+    (let ((attr (car cell)))
+      (cond
+       ((member attr '("volume" "repeat" "random" "single" "consume" "playlist"
+			    "playlistlength" "song" "songid" "nextsong" "nextsongid"
+			    "bitrate" "xfade" "mixrampdb" "mixrampdelay" "updating_db"))
+	(put 'empc-status-plist (intern attr) (string-to-number (cdr cell))))
+       ((and (string= attr "state") (member (cdr cell) '("play" "pause" "stop")))
+	(put 'empc-status-plist 'state (intern (cdr cell))))
+       ((and (string= attr "time") (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
+	(put 'empc-status-plist 'time-elapsed (string-to-number (match-string 1 (cdr cell))))
+	(put 'empc-status-plist 'time-total (string-to-number (match-string 2 (cdr cell)))))
+       (t (put 'empc-status-plist (intern attr) (cdr cell))))))
+  (symbol-plist 'empc-status-plist))
 
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
