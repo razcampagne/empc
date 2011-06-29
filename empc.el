@@ -84,7 +84,9 @@ Return nil if the line is not of the form \"key: value\"."
     nil))
 
 (defun empc-response-parse-message (msg)
-  "Check the result code and parse the response into an alist."
+  "Check the result code and parse the response into an alist.
+If the command resulted in an error, return a plist of the
+form '('error (error-code . error-message))."
   (save-match-data
     (let* ((data (split-string msg "\n" t))
 	   (status (last data)))
@@ -109,6 +111,7 @@ Return nil if the line is not of the form \"key: value\"."
     (funcall closure (empc-response-parse-message msg))))
 
 (defun empc-response-parse-status (closure msg)
+  "Parse the status response, arrange it into a plist and call CLOSURE on it."
   (setplist 'empc-status-plist nil)
   (dolist (cell (empc-response-parse-message msg))
     (let ((attr (car cell)))
@@ -142,7 +145,7 @@ Return nil if the line is not of the form \"key: value\"."
       (empc-send (concat "password " empc-server-password)))))
 
 (defun empc-close-connection ()
-  "Closes connection between empc and mpd."
+  "Close connection between empc and mpd."
   (when (and empc-process
 	     (processp empc-process)
 	     (eq (process-status empc-process) 'open))
@@ -151,7 +154,8 @@ Return nil if the line is not of the form \"key: value\"."
   (setq empc-process nil))
 
 (defun empc-send (command &optional closure fn delay)
-  "Send COMMAND to the mpd server."
+  "Send COMMAND to the mpd server.
+Parse the response using the function FN which will then call CLOSURE."
   (empc-ensure-connected)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
