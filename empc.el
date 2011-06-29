@@ -159,10 +159,18 @@ Return nil if the line is not of the form \"key: value\"."
 	      closure (if fn fn 'empc-response-generic)
   	      (if delay delay t)))
 
-(defun empc-stream-start (plist)
+(defun empc-stream-start (status)
+  "Start the stream process if the command to mpd returned successfully.
+If the stream process is killed for whatever the reason, pause mpd if possible."
   (when (and empc-stream-url empc-stream-program
-	     (eq (plist-get plist 'error) nil))
-    (start-process "empc-stream" nil empc-stream-program empc-stream-url)))
+	     (eq (plist-get status 'error) nil))
+    (set-process-sentinel (start-process "empc-stream" nil empc-stream-program empc-stream-url)
+			  '(lambda (proc event)
+			     (when (and (eq (process-status proc) 'exit)
+					empc-process
+					(processp empc-process)
+					(eq (process-status empc-process) 'open))
+			       (empc-toggle-pause 1))))))
 
 (defmacro empc-with-updated-status (status &rest body)
   "Update the status and execute the forms in BODY."
