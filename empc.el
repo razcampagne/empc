@@ -144,19 +144,14 @@ Return nil if the line should be ignored."
   (tq-close empc-queue)
   (setq empc-process nil))
 
-(defun empc-send (command &optional fn closure delay)
+(defun empc-send (command &optional closure fn delay)
   "Send COMMAND to the mpd server."
   (empc-ensure-connected)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
   (tq-enqueue empc-queue command empc-response-regexp
-	      closure
-  	      (if fn
-  		  fn
-  		'empc-response-message)
-  	      (if delay
-  		  delay
-  		t)))
+	      closure (if fn fn 'empc-response-message)
+  	      (if delay delay t)))
 
 (defun empc-stream-start (plist)
   (when (and empc-stream-url empc-stream-program
@@ -165,7 +160,7 @@ Return nil if the line should be ignored."
 
 (defun empc-update-status (&optional closure)
   "Retreive the current status and update EMPC-CURRENT-STATUS."
-  (empc-send "status" 'empc-response-parse-status closure))
+  (empc-send "status" closure 'empc-response-parse-status))
 
 (defmacro define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
