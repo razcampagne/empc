@@ -56,6 +56,7 @@
 
 (defvar empc-process nil)
 (defvar empc-queue nil)
+(defvar empc-last-crossfade nil)
 (defvar empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
@@ -189,44 +190,44 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (interactive)
      (empc-send ,command)))
 
-(defmacro empc-define-toggle-command (command)
-  "Define a command that toggle a state."
-  `(defun ,(intern (concat "empc-send-" command)) (&optional state)
-     ,(concat "Send " command " to the server.")
-     (if state
-	 ,(if (member command '("consume" "random" "repeat" "single" "pause"))
-	      `(empc-send (concat ,command " " (int-to-string state)))
-	    `(empc-send (concat ,command " " state)))
-       (let ((status (plist-get (empc-update-status) ,(intern command))))
-	 ,(if (member command '("consume" "random" "repeat" "single" "pause"))
-	      `(empc-send (concat ,command " " (if (= status 1) "0" "1")))
-	    (when (string= command "xfade")
-		`(empc-send (concat ,command " " (if (= status 0)
-						     (int-to-string empc-default-crossfade)
-						   (progn
-						     (setq empc-default-crossfade status)
-						     "0"))))))))))
-
-(defun empc-toggle-pause (&optional state)
-  "Toggle pause."
-  (interactive)
-  (if state
-      (empc-send (concat "pause " (int-to-string state)))
-    (empc-with-updated-status status
-			      (if (eq (plist-get status 'state) 'play)
-				  (empc-send "pause 1")
-				(empc-send "pause 0" 'empc-stream-start)))))
-
 (empc-define-simple-command "play")
 (empc-define-simple-command "stop")
 (empc-define-simple-command "next")
 (empc-define-simple-command "previous")
 
-;; (empc-define-toggle-command "consume")
-;; (empc-define-toggle-command "random")
-;; (empc-define-toggle-command "repeat")
-;; (empc-define-toggle-command "single")
-;; (empc-define-toggle-command "xfade")
-;; (empc-define-toggle-command "pause")
+(defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
+  "Define a command that toggle a state."
+  `(defun ,(intern (concat "empc-toggle-" command)) (&optional state)
+     ,(concat "Toggle " command ".")
+     (interactive)
+     (if state
+	 (empc-send (concat ,(concat command " ") (int-to-string state)))
+       (empc-with-updated-status status
+				 (let ((,attr (plist-get status (quote ,(intern (if state-name
+										    state-name
+										  command))))))
+				   ,(if body `(progn ,@body)
+				      `(empc-send (concat ,command (if (= ,attr 1) " 0" " 1")))))))))
+
+(empc-define-toggle-command "consume")
+(empc-define-toggle-command "random")
+(empc-define-toggle-command "repeat")
+(empc-define-toggle-command "single")
+
+(empc-define-toggle-command "pause" "state" state
+			    (cond
+			     ((eq state 'play)
+			      (empc-send "pause 1"))
+			     ((eq state 'pause)
+			      (empc-send "pause 0" 'empc-stream-start))
+			     (t (empc-send "play" 'empc-stream-start))))
+
+(empc-define-toggle-command "crossfade" "xfade" xfade
+			    (if (= xfade 0)
+				(empc-send (concat "crossfade " (int-to-string (if empc-last-crossfade
+										   empc-last-crossfade
+										 empc-default-crossfade))))
+			      (progn (setq empc-last-crossfade xfade)
+				     (empc-send "crossfade 0"))))
 
 (provide 'empc)
