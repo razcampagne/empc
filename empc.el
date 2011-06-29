@@ -192,15 +192,15 @@ Return nil if the line is not of the form \"key: value\"."
 						     (setq empc-default-crossfade status)
 						     "0"))))))))))
 
-(defun empc-send-pause (&optional state)
-  "Send pause to the server."
+(defun empc-toggle-pause (&optional state)
+  "Toggle pause."
   (interactive)
   (if state
-      (empc-send (concat "pause " state))
-    (empc-update-status '(lambda (plist)
-			   (if (eq (plist-get plist 'state) 'play)
-			       (empc-send "pause 1")
-			     (empc-send "pause 0"))))))
+      (empc-send (concat "pause " (int-to-string state)))
+    (empc-with-updated-status status
+			      (if (eq (plist-get status 'state) 'play)
+				  (empc-send "pause 1")
+				(empc-send "pause 0" 'empc-stream-start)))))
 
 (define-simple-command "play")
 (define-simple-command "stop")
