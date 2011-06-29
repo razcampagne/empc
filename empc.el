@@ -77,13 +77,11 @@ return at the end of a request.")
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
-Return nil if the line should be ignored."
-  (when (string-match "\\([^:\n]+\\):\\s-*\\(.+\\)" line)
-    (let ((key (match-string 1 line))
-	  (value (match-string 2 line)))
-      (if (and key value)
-	  (cons (downcase key) value)
-	nil))))
+Return nil if the line is not of the form \"key: value\"."
+  (if (string-match "\\([^:\n]+\\):\\s-*\\(.+\\)" line)
+      (cons (downcase (match-string 1 line))
+	    (match-string 2 line))
+    nil))
 
 (defun empc-response-parse-message (msg)
   "Check the result code and parse the response into an alist."
