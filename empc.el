@@ -68,10 +68,12 @@ return at the end of a request.")
 	   (when empc-verbose
 	     (message "empc: connection closed"))))))
 
-(defun empc-response-message (closure msg)
-  "Print the response into the minibuffer if EMPC-VERBOSE is not-nil."
+(defun empc-echo-response (msg)
+  "Print the response into the minibuffer if EMPC-VERBOSE is non nil."
   (when empc-verbose
-    (message "empc: %s" msg)))
+    (message "empc: %s" (if (string= (substring msg -1) "\n")
+			    (substring msg 0 -1)
+			  msg))))
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
