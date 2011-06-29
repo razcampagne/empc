@@ -112,6 +112,7 @@ form '('error (error-code . error-message))."
 
 (defun empc-response-parse-status (closure msg)
   "Parse the status response, arrange it into a plist and call CLOSURE on it."
+  (empc-echo-response msg)
   (setplist 'empc-status-plist nil)
   (dolist (cell (empc-response-parse-message msg))
     (let ((attr (car cell)))
