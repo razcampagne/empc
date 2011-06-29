@@ -147,6 +147,7 @@ form '('error (error-code . error-message))."
 
 (defun empc-close-connection ()
   "Close connection between empc and mpd."
+  (interactive)
   (when (and empc-process
 	     (processp empc-process)
 	     (eq (process-status empc-process) 'open))
@@ -185,6 +186,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   "Define a simple command that doesn't require heavy response processing."
   `(defun ,(intern (concat "empc-send-" command)) ()
      ,(concat "Send " command " to the server.")
+     (interactive)
      (empc-send ,command)))
 
 (defmacro empc-define-toggle-command (command)
