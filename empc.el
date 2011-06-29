@@ -164,9 +164,9 @@ Return nil if the line is not of the form \"key: value\"."
 	     (eq (plist-get plist 'error) nil))
     (start-process "empc-stream" nil empc-stream-program empc-stream-url)))
 
-(defun empc-update-status (&optional closure)
-  "Retreive the current status and update EMPC-CURRENT-STATUS."
-  (empc-send "status" closure 'empc-response-parse-status))
+(defmacro empc-with-updated-status (status &rest body)
+  "Update the status and execute the forms in BODY."
+  (empc-send "status" `(lambda (status) ,@body) 'empc-response-parse-status))
 
 (defmacro define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
