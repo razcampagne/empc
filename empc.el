@@ -176,13 +176,13 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   "Update the status and execute the forms in BODY."
   (empc-send "status" `(lambda (status) ,@body) 'empc-response-parse-status))
 
-(defmacro define-simple-command (command)
+(defmacro empc-define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
   `(defun ,(intern (concat "empc-send-" command)) ()
      ,(concat "Send " command " to the server.")
      (empc-send ,command)))
 
-(defmacro define-toggle-command (command)
+(defmacro empc-define-toggle-command (command)
   "Define a command that toggle a state."
   `(defun ,(intern (concat "empc-send-" command)) (&optional state)
      ,(concat "Send " command " to the server.")
@@ -210,16 +210,16 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 				  (empc-send "pause 1")
 				(empc-send "pause 0" 'empc-stream-start)))))
 
-(define-simple-command "play")
-(define-simple-command "stop")
-(define-simple-command "next")
-(define-simple-command "previous")
+(empc-define-simple-command "play")
+(empc-define-simple-command "stop")
+(empc-define-simple-command "next")
+(empc-define-simple-command "previous")
 
-;; (define-toggle-command "consume")
-;; (define-toggle-command "random")
-;; (define-toggle-command "repeat")
-;; (define-toggle-command "single")
-;; (define-toggle-command "xfade")
-;; (define-toggle-command "pause")
+;; (empc-define-toggle-command "consume")
+;; (empc-define-toggle-command "random")
+;; (empc-define-toggle-command "repeat")
+;; (empc-define-toggle-command "single")
+;; (empc-define-toggle-command "xfade")
+;; (empc-define-toggle-command "pause")
 
 (provide 'empc)
