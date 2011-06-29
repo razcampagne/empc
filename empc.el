@@ -102,6 +102,12 @@ Return nil if the line is not of the form \"key: value\"."
 		(setq result (cons cell result)))))
 	  result)))))
 
+(defun empc-response-generic (closure msg)
+  "Parse the server response, arrange it into an alist and call CLOSURE on it."
+  (empc-echo-response msg)
+  (when closure
+    (funcall closure (empc-response-parse-message msg))))
+
 (defun empc-response-parse-status (closure msg)
   (setplist 'empc-status-plist nil)
   (dolist (cell (empc-response-parse-message msg))
@@ -150,7 +156,7 @@ Return nil if the line is not of the form \"key: value\"."
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
   (tq-enqueue empc-queue command empc-response-regexp
-	      closure (if fn fn 'empc-response-message)
+	      closure (if fn fn 'empc-response-generic)
   	      (if delay delay t)))
 
 (defun empc-stream-start (plist)
