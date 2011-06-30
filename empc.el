@@ -214,16 +214,8 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 				   ,(if body `(progn ,@body)
 				      `(empc-send (concat ,command (if (= ,attr 1) " 0" " 1")))))))))
 
-(empc-define-simple-command "play")
-(empc-define-simple-command "stop")
+;; Controlling playback
 (empc-define-simple-command "next")
-(empc-define-simple-command "previous")
-
-(empc-define-toggle-command "consume")
-(empc-define-toggle-command "random")
-(empc-define-toggle-command "repeat")
-(empc-define-toggle-command "single")
-
 (empc-define-toggle-command "pause" "state" state
 			    (cond
 			     ((eq state 'play)
@@ -231,13 +223,28 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 			     ((eq state 'pause)
 			      (empc-send "pause 0" 'empc-stream-start))
 			     (t (empc-send "play" 'empc-stream-start))))
+(empc-define-simple-command "play")
+(empc-define-simple-command "playid")
+(empc-define-simple-command "previous")
+(empc-define-simple-command "stop")
 
+;; Playback options
+(empc-define-toggle-command "consume")
 (empc-define-toggle-command "crossfade" "xfade" xfade
 			    (if (= xfade 0)
-				(empc-send (concat "crossfade " (int-to-string (if empc-last-crossfade
-										   empc-last-crossfade
-										 empc-default-crossfade))))
-			      (progn (setq empc-last-crossfade xfade)
-				     (empc-send "crossfade 0"))))
+				(empc-send (concat "crossfade "
+						   (int-to-string (if empc-last-crossfade
+								      empc-last-crossfade
+								    empc-default-crossfade))))
+			      (progn
+				(setq empc-last-crossfade xfade)
+				(empc-send "crossfade 0"))))
+(empc-define-toggle-command "random")
+(empc-define-toggle-command "repeat")
+(empc-define-simple-command "setvol")
+(empc-define-toggle-command "single")
+
+;; The current playlist
+(empc-define-simple-command "clear")
 
 (provide 'empc)
