@@ -185,10 +185,12 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 
 (defmacro empc-define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
-  `(defun ,(intern (concat "empc-send-" command)) ()
+  `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
      ,(concat "Send " command " to the server.")
      (interactive)
-     (empc-send ,command)))
+     (if arg
+	 (empc-send (concat ,(concat command " ") arg))
+       (empc-send ,command))))
 
 (empc-define-simple-command "play")
 (empc-define-simple-command "stop")
