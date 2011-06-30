@@ -189,7 +189,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 
 (defmacro empc-with-updated-status (status &rest body)
   "Update the status and execute the forms in BODY."
-  (empc-send "status" `(lambda (status) ,@body) 'empc-response-parse-status))
+  `(empc-send "status" '(lambda (status) ,@body) 'empc-response-parse-status))
 
 (defmacro empc-define-simple-command (command)
   "Define a simple command that doesn't require heavy response processing."
