@@ -192,11 +192,6 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	 (empc-send (concat ,(concat command " ") arg))
        (empc-send ,command))))
 
-(empc-define-simple-command "play")
-(empc-define-simple-command "stop")
-(empc-define-simple-command "next")
-(empc-define-simple-command "previous")
-
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
   "Define a command that toggle a state."
   `(defun ,(intern (concat "empc-toggle-" command)) (&optional state)
@@ -210,6 +205,11 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 										  command))))))
 				   ,(if body `(progn ,@body)
 				      `(empc-send (concat ,command (if (= ,attr 1) " 0" " 1")))))))))
+
+(empc-define-simple-command "play")
+(empc-define-simple-command "stop")
+(empc-define-simple-command "next")
+(empc-define-simple-command "previous")
 
 (empc-define-toggle-command "consume")
 (empc-define-toggle-command "random")
