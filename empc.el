@@ -245,12 +245,17 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (empc-leave-idle-state)
      (if state
 	 (empc-send (concat ,(concat command " ") (int-to-string state)))
-       (empc-with-updated-status status
-				 (let ((,attr (plist-get status (quote ,(intern (if state-name
-										    state-name
-										  command))))))
-				   ,(if body `(progn ,@body)
-				      `(empc-send (concat ,command (if (= ,attr 1) " 0" " 1")))))))))
+       (empc-with-updated-status
+	status
+	(let ((,(if attr attr
+		  (intern command))
+	       (plist-get status (quote ,(intern (if state-name
+						     state-name
+						   command))))))
+	  ,(if body
+	       `(progn ,@body)
+	     `(empc-send (concat ,command (if (= ,(if attr attr
+						    (intern command)) 1) " 0" " 1")))))))))
 
 ;; Controlling playback
 (empc-define-simple-command "next")
