@@ -56,6 +56,7 @@
 
 (defvar empc-process nil)
 (defvar empc-queue nil)
+(defvar empc-idle-state nil)
 (defvar empc-available-commands nil)
 (defvar empc-last-crossfade nil)
 (defvar empc-response-regexp
@@ -106,31 +107,41 @@ form '('error (error-code . error-message))."
 		(setq result (cons cell result)))))
 	  result)))))
 
-(defun empc-response-generic (closure msg)
-  "Parse the server response, arrange it into an alist and call CLOSURE on it."
-  (empc-echo-response msg)
-  (when closure
-    (funcall closure (empc-response-parse-message msg))))
+(defmacro empc-define-response-handler (name params comment &rest body)
+  "Define a response handler enclosed in required functions."
+  `(defun ,name ,params
+     ,comment
+     (empc-echo-response ,(cadr params))
+     ,@body
+     (empc-maybe-enter-idle-state)))
 
-(defun empc-response-parse-status (closure msg)
-  "Parse the status response, arrange it into a plist and call CLOSURE on it."
-  (empc-echo-response msg)
-  (setplist 'empc-status-plist nil)
-  (dolist (cell (empc-response-parse-message msg))
-    (let ((attr (car cell)))
-      (cond
-       ((member attr '("volume" "repeat" "random" "single" "consume" "playlist"
-		     "playlistlength" "song" "songid" "nextsong" "nextsongid"
-		     "bitrate" "xfade" "mixrampdb" "mixrampdelay" "updating_db"))
-	(put 'empc-status-plist (intern attr) (string-to-number (cdr cell))))
-       ((and (string= attr "state") (member (cdr cell) '("play" "pause" "stop")))
-	(put 'empc-status-plist 'state (intern (cdr cell))))
-       ((and (string= attr "time") (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
-	(put 'empc-status-plist 'time-elapsed (string-to-number (match-string 1 (cdr cell))))
-	(put 'empc-status-plist 'time-total (string-to-number (match-string 2 (cdr cell)))))
-       (t (put 'empc-status-plist (intern attr) (cdr cell))))))
-  (when closure
-    (funcall closure (symbol-plist 'empc-status-plist))))
+(empc-define-response-handler empc-response-generic (closure msg)
+			      "Parse the server response, arrange it into an alist and call CLOSURE on it."
+			      (when closure
+				(funcall closure (empc-response-parse-message msg))))
+
+(empc-define-response-handler empc-response-parse-status (closure msg)
+			      "Parse the status response, arrange it into a plist and call CLOSURE on it."
+			      (setplist 'empc-status-plist nil)
+			      (dolist (cell (empc-response-parse-message msg))
+				(let ((attr (car cell)))
+				  (cond
+				   ((member attr '("volume" "repeat" "random" "single" "consume" "playlist"
+						   "playlistlength" "song" "songid" "nextsong" "nextsongid"
+						   "bitrate" "xfade" "mixrampdb" "mixrampdelay" "updating_db"))
+				    (put 'empc-status-plist (intern attr) (string-to-number (cdr cell))))
+				   ((and (string= attr "state") (member (cdr cell) '("play" "pause" "stop")))
+				    (put 'empc-status-plist 'state (intern (cdr cell))))
+				   ((and (string= attr "time") (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
+				    (put 'empc-status-plist 'time-elapsed (string-to-number (match-string 1 (cdr cell))))
+				    (put 'empc-status-plist 'time-total (string-to-number (match-string 2 (cdr cell)))))
+				   (t (put 'empc-status-plist (intern attr) (cdr cell))))))
+			      (when closure
+				(funcall closure (symbol-plist 'empc-status-plist))))
+
+(empc-define-response-handler empc-response-parse-idle (closure msg)
+			      "Parse message from idle interruption."
+			      (setq empc-idle-state nil))
 
 (defun empc-initialize ()
   "Initialize the client after connection.
@@ -140,7 +151,9 @@ Send the password or retrieve available commands."
   (empc-send "commands" nil '(lambda (closure msg)
 			       (setq empc-available-commands nil)
 			       (dolist (cell (empc-response-parse-message msg))
-				 (setq empc-available-commands (cons (cdr cell) empc-available-commands))))))
+				 (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
+  (setq empc-idle-state nil
+	empc-last-crossfade nil))
 
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
@@ -162,9 +175,30 @@ Send the password or retrieve available commands."
   (when (and empc-process
 	     (processp empc-process)
 	     (eq (process-status empc-process) 'open))
+    (empc-leave-idle-state)
     (empc-send "close"))
-  (tq-close empc-queue)
-  (setq empc-process nil))
+  (when empc-queue
+    (tq-close empc-queue))
+  (setq empc-queue nil
+	empc-process nil
+	empc-idle-state nil
+	empc-last-crossfade nil
+	empc-available-commands nil))
+
+(defun empc-maybe-enter-idle-state ()
+  "If not already in idle state and there is no other commands pending,
+enter idle state to accept notifications from the server."
+  (unless (or empc-idle-state
+	      (cdr (tq-queue empc-queue)))
+    (tq-enqueue empc-queue "idle\n" empc-response-regexp
+		nil 'empc-response-parse-idle t)
+    (setq empc-idle-state t)))
+
+(defun empc-leave-idle-state ()
+  "If in idle state, regain control."
+  (when empc-idle-state
+    (process-send-string empc-process "noidle\n")
+    (setq empc-idle-state nil)))
 
 (defun empc-send (command &optional closure fn delay)
   "Send COMMAND to the mpd server.
@@ -198,6 +232,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
      ,(concat "Send " command " to the server.")
      (interactive)
+     (empc-leave-idle-state)
      (if arg
 	 (empc-send (concat ,(concat command " ") arg))
        (empc-send ,command))))
@@ -207,6 +242,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   `(defun ,(intern (concat "empc-toggle-" command)) (&optional state)
      ,(concat "Toggle " command ".")
      (interactive)
+     (empc-leave-idle-state)
      (if state
 	 (empc-send (concat ,(concat command " ") (int-to-string state)))
        (empc-with-updated-status status
