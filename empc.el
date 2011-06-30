@@ -133,6 +133,8 @@ form '('error (error-code . error-message))."
     (funcall closure (symbol-plist 'empc-status-plist))))
 
 (defun empc-initialize ()
+  "Initialize the client after connection.
+Send the password or retrieve available commands."
   (when empc-server-password
     (empc-send (concat "password " empc-server-password)))
   (empc-send "commands" nil '(lambda (closure msg)
