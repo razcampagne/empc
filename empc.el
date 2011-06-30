@@ -56,6 +56,7 @@
 
 (defvar empc-process nil)
 (defvar empc-queue nil)
+(defvar empc-available-commands nil)
 (defvar empc-last-crossfade nil)
 (defvar empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
@@ -131,6 +132,14 @@ form '('error (error-code . error-message))."
   (when closure
     (funcall closure (symbol-plist 'empc-status-plist))))
 
+(defun empc-initialize ()
+  (when empc-server-password
+    (empc-send (concat "password " empc-server-password)))
+  (empc-send "commands" nil '(lambda (closure msg)
+			       (setq empc-available-commands nil)
+			       (dolist (cell (empc-response-parse-message msg))
+				 (setq empc-available-commands (cons (cdr cell) empc-available-commands))))))
+
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
   (unless (and empc-process
@@ -143,8 +152,7 @@ form '('error (error-code . error-message))."
       (process-kill-without-query empc-process))
     (set-process-coding-system empc-process 'utf-8-unix 'utf-8-unix)
     (setq empc-queue (tq-create empc-process))
-    (when empc-server-password
-      (empc-send (concat "password " empc-server-password)))))
+    (empc-initialize)))
 
 (defun empc-close-connection ()
   "Close connection between empc and mpd."
