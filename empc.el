@@ -204,6 +204,7 @@ enter idle state to accept notifications from the server."
   "Send COMMAND to the mpd server.
 Parse the response using the function FN which will then call CLOSURE."
   (empc-ensure-connected)
+  (empc-leave-idle-state)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
   (tq-enqueue empc-queue command empc-response-regexp
