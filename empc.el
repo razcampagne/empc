@@ -141,7 +141,20 @@ form '('error (error-code . error-message))."
 
 (empc-define-response-handler empc-response-parse-idle (closure msg)
 			      "Parse message from idle interruption."
-			      (setq empc-idle-state nil))
+			      (setq empc-idle-state nil)
+			      (dolist (cell (empc-response-parse-message msg))
+				(when (string= (car cell) "changed")
+				  (let ((changed (cdr cell)))
+				    (cond
+				     ((string= changed "player")
+				      (empc-send "currentsong" nil 'empc-response-notify)))))))
+
+(empc-define-response-handler empc-response-notify (closure msg)
+			      "Notify the response using standard notification system."
+			      (if (eq window-system 'x)
+				  (shell-command (concat "notify-send "
+							 " \"Music Player Daemon\" \"" msg "\""))
+				(message (concat "empc: " msg))))
 
 (defun empc-initialize ()
   "Initialize the client after connection.
