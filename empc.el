@@ -59,7 +59,7 @@
 (defvar empc-idle-state nil)
 (defvar empc-available-commands nil)
 (defvar empc-last-crossfade nil)
-(defvar empc-response-regexp
+(defconst empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
 return at the end of a request.")
