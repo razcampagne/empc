@@ -71,12 +71,21 @@ return at the end of a request.")
 	   (when empc-verbose
 	     (message "empc: connection closed"))))))
 
-(defun empc-echo-response (msg)
+(defun empc-echo-minibuffer (msg)
   "Print the response into the minibuffer if EMPC-VERBOSE is non nil."
   (when empc-verbose
     (message "empc: %s" (if (string= (substring msg -1) "\n")
 			    (substring msg 0 -1)
 			  msg))))
+
+(defun empc-echo-notify (msg)
+  "Notify the response using notification system if available, in echo area if not."
+  (let ((msg (if (string= (substring msg -1) "\n")
+		 (substring msg 0 -1)
+	       msg)))
+    (if (eq window-system 'x)
+	(shell-command (concat "notify-send " " \"Music Player Daemon\" \"" msg "\"") nil nil)
+      (message msg))))
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
@@ -111,7 +120,7 @@ form '('error (error-code . error-message))."
   "Define a response handler enclosed in required functions."
   `(defun ,name ,params
      ,comment
-     (empc-echo-response ,(cadr params))
+     (empc-echo-minibuffer ,(cadr params))
      ,@body
      (empc-maybe-enter-idle-state)))
 
@@ -150,11 +159,8 @@ form '('error (error-code . error-message))."
 				      (empc-send "currentsong" nil 'empc-response-notify)))))))
 
 (empc-define-response-handler empc-response-notify (closure msg)
-			      "Notify the response using standard notification system."
-			      (if (eq window-system 'x)
-				  (shell-command (concat "notify-send "
-							 " \"Music Player Daemon\" \"" msg "\""))
-				(message (concat "empc: " msg))))
+			      "Notify the response using notification system."
+			      (empc-echo-notify msg))
 
 (defun empc-initialize ()
   "Initialize the client after connection.
