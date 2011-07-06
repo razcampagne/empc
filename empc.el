@@ -101,7 +101,7 @@ If the command resulted in an error, return a plist of the
 form '('error (error-code . error-message))."
   (save-match-data
     (let* ((data (split-string msg "\n" t))
-	   (status (last data)))
+	   (status (car (last data))))
       (when (and (stringp (car data))
 		 (string-match "^OK\\( MPD \\)?" (car data)))
 	(setq data (cdr data)))
