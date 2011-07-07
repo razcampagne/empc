@@ -253,15 +253,15 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 					(eq (process-status empc-process) 'open))
 			       (empc-toggle-pause 1))))))
 
-(defmacro empc-define-simple-command (command)
-  "Define a simple command that doesn't require heavy response processing."
+(defmacro empc-define-simple-command (command &optional closure)
+  "Define a simple command that doesn't need an argument."
   `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
      ,(concat "Send " command " to the server.")
      (interactive)
      (empc-leave-idle-state)
      (if arg
 	 (empc-send (concat ,(concat command " ") arg))
-       (empc-send ,command))))
+       (empc-send ,command closure))))
 
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
   "Define a command that toggle a state."
@@ -281,19 +281,10 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	    `(empc-send (concat ,command (if (= ,(if attr attr
 						   (intern command)) 1) " 0" " 1"))))))))
 
-;; Controlling playback
-(empc-define-simple-command "next")
-(empc-define-toggle-command "pause" "state" state
-			    (cond
-			     ((eq state 'play)
-			      (empc-send "pause 1"))
-			     ((eq state 'pause)
-			      (empc-send "pause 0" 'empc-stream-start))
-			     (t (empc-send "play" 'empc-stream-start))))
-(empc-define-simple-command "play")
-(empc-define-simple-command "playid")
-(empc-define-simple-command "previous")
-(empc-define-simple-command "stop")
+;; Querying MPD's status
+(empc-define-simple-command "status" 'empc-response-get-status)
+(empc-define-simple-command "currentsong")
+(empc-define-simple-command "stats")
 
 ;; Playback options
 (empc-define-toggle-command "consume")
@@ -311,7 +302,25 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 (empc-define-simple-command "setvol")
 (empc-define-toggle-command "single")
 
+;; Controlling playback
+(empc-define-simple-command "next")
+(empc-define-toggle-command "pause" "state" state
+			    (cond
+			     ((eq state 'play)
+			      (empc-send "pause 1"))
+			     ((eq state 'pause)
+			      (empc-send "pause 0" 'empc-stream-start))
+			     (t (empc-send "play" 'empc-stream-start))))
+(empc-define-simple-command "play")
+(empc-define-simple-command "previous")
+(empc-define-simple-command "stop")
+
 ;; The current playlist
 (empc-define-simple-command "clear")
+(empc-define-simple-command "playlistinfo" 'empc-response-get-playlist)
+(empc-define-simple-command "shuffle")
+
+;; Stored playlists
+(empc-define-simple-command "listplaylists")
 
 (provide 'empc)
