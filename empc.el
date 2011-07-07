@@ -120,21 +120,22 @@ form '('error (error-code . error-message))."
 
 (defun empc-response-get-status (data)
   "Arrange data into a plist and store it into EMPC-CURRENT-STATUS."
-  (setq empc-current-status nil)
-  (dolist (cell data)
-    (let ((attr (intern (concat ":" (car cell)))))
-      (setq empc-current-status
-	    (cond
-	     ((member attr '(:volume :repeat :random :single :consume :playlist
-			     :playlistlength :song :songid :nextsong :nextsongid
-			     :bitrate :xfade :mixrampdb :mixrampdelay :updating_db))
-	      (plist-put empc-current-status attr (string-to-number (cdr cell))))
-	     ((and (eq attr :state) (member (cdr cell) '("play" "pause" "stop")))
-	      (plist-put empc-current-status :state (intern (cdr cell))))
-	     ((and (eq attr :time) (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
-	      (plist-put empc-current-status :time-elapsed (string-to-number (match-string 1 (cdr cell))))
-	      (plist-put empc-current-status :time-total (string-to-number (match-string 2 (cdr cell)))))
-	     (t (plist-put empc-current-status attr (cdr cell))))))))
+  (let ((new-status nil))
+    (dolist (cell data)
+      (let ((attr (intern (concat ":" (car cell)))))
+	(setq new-status
+	      (cond
+	       ((member attr '(:volume :repeat :random :single :consume :playlist
+				       :playlistlength :song :songid :nextsong :nextsongid
+				       :bitrate :xfade :mixrampdb :mixrampdelay :updating_db))
+		(plist-put new-status attr (string-to-number (cdr cell))))
+	       ((and (eq attr :state) (member (cdr cell) '("play" "pause" "stop")))
+		(plist-put new-status :state (intern (cdr cell))))
+	       ((and (eq attr :time) (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
+		(plist-put new-status :time-elapsed (string-to-number (match-string 1 (cdr cell))))
+		(plist-put new-status :time-total (string-to-number (match-string 2 (cdr cell)))))
+	       (t (plist-put new-status attr (cdr cell)))))))
+    (setq empc-current-status new-status)))
 
 (defun empc-response-get-playlist (data)
   "Arrange data into a list of plists representing the current playlist and store it into EMPC-CURRENT-PLAYLIST."
