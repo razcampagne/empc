@@ -163,10 +163,10 @@ Check the error code and process it using CLOSURE."
 Send the password or retrieve available commands."
   (when empc-server-password
     (empc-send (concat "password " empc-server-password)))
-  (empc-send "commands" nil '(lambda (closure msg)
-			       (setq empc-available-commands nil)
-			       (dolist (cell (empc-response-parse-message msg))
-				 (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
+  (empc-send "commands" '(lambda (data)
+			   (setq empc-available-commands nil)
+			   (dolist (cell data)
+			     (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
   (setq empc-idle-state nil
 	empc-last-crossfade nil))
 
