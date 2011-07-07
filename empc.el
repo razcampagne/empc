@@ -147,7 +147,10 @@ form '('error (error-code . error-message))."
 		   (plist-get song field))
 	  (setq empc-current-playlist (cons song empc-current-playlist))
 	  (setq song nil))
-	(setq song (cons field (cons (cdr cell) song)))))
+	(cond
+	 ((member field '(:time :track :date :pos :id))
+	  (setq song (cons field (cons (string-to-int (cdr cell)) song))))
+	 (t (setq song (cons field (cons (cdr cell) song)))))))
     (setq empc-current-playlist (cons song empc-current-playlist))))
 
 (defun empc-response-idle (data)
