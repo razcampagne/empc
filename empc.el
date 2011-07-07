@@ -121,19 +121,19 @@ form '('error (error-code . error-message))."
   "Arrange data into a plist and store it into EMPC-CURRENT-STATUS."
   (setq empc-current-status nil)
   (dolist (cell data)
-    (let ((attr (car cell)))
+    (let ((attr (intern (concat ":" (car cell)))))
       (setq empc-current-status
 	    (cond
-	     ((member attr '("volume" "repeat" "random" "single" "consume" "playlist"
-			     "playlistlength" "song" "songid" "nextsong" "nextsongid"
-			     "bitrate" "xfade" "mixrampdb" "mixrampdelay" "updating_db"))
-	      (plist-put empc-current-status (intern attr) (string-to-number (cdr cell))))
-	     ((and (string= attr "state") (member (cdr cell) '("play" "pause" "stop")))
-	      (plist-put empc-current-status 'state (intern (cdr cell))))
-	     ((and (string= attr "time") (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
-	      (plist-put empc-current-status 'time-elapsed (string-to-number (match-string 1 (cdr cell))))
-	      (plist-put empc-current-status 'time-total (string-to-number (match-string 2 (cdr cell)))))
-	     (t (plist-put empc-current-status (intern attr) (cdr cell))))))))
+	     ((member attr '(:volume :repeat :random :single :consume :playlist
+			     :playlistlength :song :songid :nextsong :nextsongid
+			     :bitrate :xfade :mixrampdb :mixrampdelay :updating_db))
+	      (plist-put empc-current-status attr (string-to-number (cdr cell))))
+	     ((and (eq attr :state) (member (cdr cell) '("play" "pause" "stop")))
+	      (plist-put empc-current-status :state (intern (cdr cell))))
+	     ((and (eq attr :time) (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
+	      (plist-put empc-current-status :time-elapsed (string-to-number (match-string 1 (cdr cell))))
+	      (plist-put empc-current-status :time-total (string-to-number (match-string 2 (cdr cell)))))
+	     (t (plist-put empc-current-status attr (cdr cell))))))))
 
 (defun empc-response-idle (data)
   "React from idle interruption."
@@ -167,6 +167,7 @@ Send the password or retrieve available commands."
 			   (setq empc-available-commands nil)
 			   (dolist (cell data)
 			     (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
+  (empc-send "status" 'empc-response-get-status)
   (setq empc-idle-state nil
 	empc-last-crossfade nil))
 
@@ -258,9 +259,9 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	 (empc-send (concat ,(concat command " ") (int-to-string state)))
        (let ((,(if attr attr
 		 (intern command))
-	      (plist-get empc-current-status (quote ,(intern (if state-name
-								 state-name
-							       command))))))
+	      (plist-get empc-current-status (quote ,(intern (concat ":" (if state-name
+									     state-name
+									   command)))))))
 	 ,(if body
 	      `(progn ,@body)
 	    `(empc-send (concat ,command (if (= ,(if attr attr
