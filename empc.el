@@ -60,6 +60,7 @@
 (defvar empc-available-commands nil)
 (defvar empc-last-crossfade nil)
 (defvar empc-current-status nil)
+(defvar empc-current-playlist nil)
 (defconst empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
@@ -135,6 +136,19 @@ form '('error (error-code . error-message))."
 	      (plist-put empc-current-status :time-total (string-to-number (match-string 2 (cdr cell)))))
 	     (t (plist-put empc-current-status attr (cdr cell))))))))
 
+(defun empc-response-get-playlist (data)
+  "Arrange data into a list of plists representing the current playlist and store it into EMPC-CURRENT-PLAYLIST."
+  (setq empc-current-playlist nil)
+  (let ((song nil))
+    (dolist (cell data)
+      (let ((field (intern (concat ":" (car cell)))))
+	(when (and song
+		   (plist-get song field))
+	  (setq empc-current-playlist (cons song empc-current-playlist))
+	  (setq song nil))
+	(setq song (cons field (cons (cdr cell) song)))))
+    (setq empc-current-playlist (cons song empc-current-playlist))))
+
 (defun empc-response-idle (data)
   "React from idle interruption."
   (setq empc-idle-state nil)
@@ -143,8 +157,7 @@ form '('error (error-code . error-message))."
       (let ((changed (cdr cell)))
 	(cond
 	 ((string= changed "player")
-	  (empc-send "status" 'empc-response-get-status)
-	  (empc-send "currentsong"))
+	  (empc-send "status" 'empc-response-get-status))
 	 ((string= changed "options")
 	  (empc-send "status" 'empc-response-get-status)))))))
 
@@ -168,6 +181,7 @@ Send the password or retrieve available commands."
 			   (dolist (cell data)
 			     (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
   (empc-send "status" 'empc-response-get-status)
+  (empc-send "playlistinfo" 'empc-response-get-playlist)
   (setq empc-idle-state nil
 	empc-last-crossfade nil))
 
