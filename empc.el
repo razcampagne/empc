@@ -139,19 +139,21 @@ form '('error (error-code . error-message))."
 
 (defun empc-response-get-playlist (data)
   "Arrange data into a list of plists representing the current playlist and store it into EMPC-CURRENT-PLAYLIST."
-  (setq empc-current-playlist nil)
-  (let ((song nil))
+  (setq empc-current-playlist (make-vector (plist-get empc-current-status :playlistlength) nil))
+  (let ((song nil)
+	(index (- (length empc-current-playlist) 1)))
     (dolist (cell data)
       (let ((field (intern (concat ":" (car cell)))))
 	(when (and song
 		   (plist-get song field))
-	  (setq empc-current-playlist (cons song empc-current-playlist))
-	  (setq song nil))
+	  (aset empc-current-playlist index song)
+	  (setq song nil)
+	  (decf index))
 	(cond
 	 ((member field '(:time :track :date :pos :id))
 	  (setq song (cons field (cons (string-to-int (cdr cell)) song))))
 	 (t (setq song (cons field (cons (cdr cell) song)))))))
-    (setq empc-current-playlist (cons song empc-current-playlist))))
+    (aset empc-current-playlist index song)))
 
 (defun empc-response-idle (data)
   "React from idle interruption."
