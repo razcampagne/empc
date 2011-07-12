@@ -80,14 +80,16 @@ return at the end of a request.")
 			    (substring msg 0 -1)
 			  msg))))
 
-(defun empc-echo-notify (msg)
+(defun empc-echo-notify (data)
   "Notify the response using notification system if available, in echo area if not."
-  (let ((msg (if (string= (substring msg -1) "\n")
-		 (substring msg 0 -1)
-	       msg)))
-    (if (eq window-system 'x)
-	(shell-command (concat "notify-send " " \"Music Player Daemon\" \"" msg "\"") nil nil)
-      (message msg))))
+  (if (eq window-system 'x)
+      (start-process "empc-notify" nil "notify-send" "Music Player Daemon"
+		     (concat (cdr (assoc "artist" data)) " - " (cdr (assoc "title" data))))
+    (message (concat (cdr (assoc "artist" data)) " - " (cdr (assoc "title" data))))))
+
+(defun empc-make-modeline ()
+  "Create the string to insert into the modeline."
+  )
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
@@ -163,7 +165,8 @@ form '('error (error-code . error-message))."
       (let ((changed (cdr cell)))
 	(cond
 	 ((string= changed "player")
-	  (empc-send "status" 'empc-response-get-status))
+	  (empc-send "status" 'empc-response-get-status)
+	  (empc-send "currentsong" 'empc-echo-notify))
 	 ((string= changed "options")
 	  (empc-send "status" 'empc-response-get-status)))))))
 
