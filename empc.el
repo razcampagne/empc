@@ -61,6 +61,7 @@
 (defvar empc-last-crossfade nil)
 (defvar empc-current-status nil)
 (defvar empc-current-playlist nil)
+(defvar empc-current-song nil)
 (defconst empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
@@ -85,6 +86,10 @@ return at the end of a request.")
   (if (eq window-system 'x)
       (start-process "empc-notify" nil "notify-send" "Music Player Daemon" msg)
     (message msg)))
+
+(defun empc-echo-current-song ()
+  "Notify the currently played song."
+  (empc-echo-notify (concat (plist-get empc-current-song :artist) " - " (plist-get empc-current-song :title))))
 
 (defun empc-make-modeline ()
   "Create the string to insert into the modeline."
@@ -119,8 +124,19 @@ form '('error (error-code . error-message))."
 		(setq result (cons cell result)))))
 	  result)))))
 
+(defun empc-update-status (new-status)
+  "Determine the differences between the stored status and the new one
+then update what needs to be."
+  (if (eq (plist-get new-status :state) 'play)
+      (progn
+	(unless (eq (plist-get empc-current-status :song) (plist-get new-status :song))
+	  (setq empc-current-song (aref empc-current-playlist (plist-get new-status :song))))
+	(empc-echo-current-song))
+    (empc-echo-notify (if (eq (plist-get new-status :status) 'stop) "Stop" "Pause")))
+  (setq empc-current-status new-status))
+
 (defun empc-response-get-status (data)
-  "Arrange data into a plist and store it into EMPC-CURRENT-STATUS."
+  "Arrange DATA into a plist and store it into EMPC-CURRENT-STATUS."
   (let ((new-status nil))
     (dolist (cell data)
       (let ((attr (intern (concat ":" (car cell)))))
@@ -136,7 +152,7 @@ form '('error (error-code . error-message))."
 		(plist-put new-status :time-elapsed (string-to-number (match-string 1 (cdr cell))))
 		(plist-put new-status :time-total (string-to-number (match-string 2 (cdr cell)))))
 	       (t (plist-put new-status attr (cdr cell)))))))
-    (setq empc-current-status new-status)))
+    (empc-update-status new-status)))
 
 (defun empc-response-get-playlist (data)
   "Arrange data into a list of plists representing the current playlist and store it into EMPC-CURRENT-PLAYLIST."
@@ -164,11 +180,11 @@ form '('error (error-code . error-message))."
     (when (string= (car cell) "changed")
       (let ((changed (cdr cell)))
 	(cond
-	 ((string= changed "player")
+	 ((member changed '("player" "options"))
+	  (empc-send "status" 'empc-response-get-status))
+	 ((string= changed "playlist")
 	  (empc-send "status" 'empc-response-get-status)
-	  (empc-send "currentsong" 'empc-echo-notify))
-	 ((string= changed "options")
-	  (empc-send "status" 'empc-response-get-status)))))))
+	  (empc-send "playlistinfo" 'empc-response-get-playlist)))))))
 
 (defun empc-handle-response (closure msg)
   "Retrieve the response from the server.
