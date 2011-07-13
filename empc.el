@@ -132,7 +132,7 @@ then update what needs to be."
 	(unless (eq (plist-get empc-current-status :song) (plist-get new-status :song))
 	  (setq empc-current-song (aref empc-current-playlist (plist-get new-status :song))))
 	(empc-echo-current-song))
-    (empc-echo-notify (if (eq (plist-get new-status :status) 'stop) "Stop" "Pause")))
+    (empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop")))
   (setq empc-current-status new-status))
 
 (defun empc-response-get-status (data)
