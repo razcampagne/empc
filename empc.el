@@ -80,12 +80,11 @@ return at the end of a request.")
 			    (substring msg 0 -1)
 			  msg))))
 
-(defun empc-echo-notify (data)
-  "Notify the response using notification system if available, in echo area if not."
+(defun empc-echo-notify (msg)
+  "Notify MSG using notification system if available, in echo area if not."
   (if (eq window-system 'x)
-      (start-process "empc-notify" nil "notify-send" "Music Player Daemon"
-		     (concat (cdr (assoc "artist" data)) " - " (cdr (assoc "title" data))))
-    (message (concat (cdr (assoc "artist" data)) " - " (cdr (assoc "title" data))))))
+      (start-process "empc-notify" nil "notify-send" "Music Player Daemon" msg)
+    (message msg)))
 
 (defun empc-make-modeline ()
   "Create the string to insert into the modeline."
