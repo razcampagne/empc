@@ -155,7 +155,8 @@ form '('error (error-code . error-message))."
 	 ((member field '(:time :track :date :pos :id))
 	  (setq song (cons field (cons (string-to-int (cdr cell)) song))))
 	 (t (setq song (cons field (cons (cdr cell) song)))))))
-    (aset empc-current-playlist index song)))
+    (when (and song (>= index 0))
+      (aset empc-current-playlist index song))))
 
 (defun empc-response-idle (data)
   "React from idle interruption."
