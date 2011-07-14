@@ -127,12 +127,16 @@ form '('error (error-code . error-message))."
 (defun empc-update-status (new-status)
   "Determine the differences between the stored status and the new one
 then update what needs to be."
-  (if (eq (plist-get new-status :state) 'play)
-      (progn
-	(unless (eq (plist-get empc-current-status :song) (plist-get new-status :song))
-	  (setq empc-current-song (aref empc-current-playlist (plist-get new-status :song))))
-	(empc-echo-current-song))
-    (empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop")))
+  (cond
+   ((not (eq (plist-get empc-current-status :state) (plist-get new-status :state)))
+    (if (eq (plist-get new-status :state) 'play)
+	(progn
+	  (unless (eq (plist-get empc-current-status :song) (plist-get new-status :song))
+	    (setq empc-current-song (aref empc-current-playlist (plist-get new-status :song))))
+	  (empc-echo-current-song))
+      (empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop"))))
+   ((not (eq (plist-get empc-current-status :playlist) (plist-get new-status :playlist)))
+    (empc-echo-notify "Playlist changed")))
   (setq empc-current-status new-status))
 
 (defun empc-response-get-status (data)
