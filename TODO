@@ -1,0 +1,4 @@
+#				-*- org -*-
+
+* Store playlist as a Hash table with songid as the key.
+* Rewrite empc-update-status
