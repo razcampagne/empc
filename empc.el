@@ -289,8 +289,8 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (interactive)
      (empc-leave-idle-state)
      (if arg
-	 (empc-send (concat ,(concat command " ") arg))
-       (empc-send ,command closure))))
+	 (empc-send (concat ,(concat command " ") arg) ,closure)
+       (empc-send ,command ,closure))))
 
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
   "Define a command that toggle a state."
