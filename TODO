@@ -1,4 +1,5 @@
 #				-*- org -*-
 
 * Store playlist as a Hash table with songid as the key.
+* Then add a vector that binds position to songid.
 * Rewrite empc-update-status
