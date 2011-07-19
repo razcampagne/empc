@@ -238,11 +238,14 @@ Send the password or retrieve available commands."
     (empc-send "close"))
   (when empc-queue
     (tq-close empc-queue))
-  (setq empc-queue nil
-	empc-process nil
+  (setq empc-process nil
+	empc-queue nil
 	empc-idle-state nil
+	empc-available-commands nil
 	empc-last-crossfade nil
-	empc-available-commands nil))
+	empc-current-status nil
+	empc-current-playlist nil
+	empc-current-song nil))
 
 (defun empc-maybe-enter-idle-state ()
   "If not already in idle state and there is no other commands pending,
