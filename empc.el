@@ -345,8 +345,8 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 			      (empc-send "pause 1"))
 			     ((eq state 'pause)
 			      (empc-send "pause 0" 'empc-stream-start))
-			     (t (empc-send "play" 'empc-stream-start))))
-(empc-define-simple-command "play")
+			     (t (empc-send-play))))
+(empc-define-simple-command "play" 'empc-stream-start)
 (empc-define-simple-command "previous")
 (empc-define-simple-command "stop")
 
