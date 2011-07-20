@@ -89,7 +89,8 @@ return at the end of a request.")
 
 (defun empc-echo-song (song)
   "Notify SONG."
-  (empc-echo-notify (concat (plist-get song :artist) " - " (plist-get song :title))))
+  (empc-echo-notify (concat "[" (int-to-string (plist-get song :pos)) "/" (int-to-string (plist-get empc-current-status :playlistlength)) "] "
+			    (plist-get song :artist) " - " (plist-get song :title))))
 
 (defun empc-make-modeline ()
   "Create the string to insert into the modeline."
