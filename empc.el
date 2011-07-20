@@ -87,9 +87,9 @@ return at the end of a request.")
       (start-process "empc-notify" nil "notify-send" "Music Player Daemon" msg)
     (message msg)))
 
-(defun empc-echo-current-song ()
-  "Notify the currently played song."
-  (empc-echo-notify (concat (plist-get empc-current-song :artist) " - " (plist-get empc-current-song :title))))
+(defun empc-echo-song (song)
+  "Notify SONG."
+  (empc-echo-notify (concat (plist-get song :artist) " - " (plist-get song :title))))
 
 (defun empc-make-modeline ()
   "Create the string to insert into the modeline."
@@ -130,11 +130,12 @@ then update what needs to be."
   (let ((new-song empc-current-song))
     (unless (and (eq (plist-get empc-current-status :song) (plist-get new-status :song))
 		 (eq (plist-get empc-current-song :pos) (plist-get new-status :song)))
-      (setq new-song (aref empc-current-playlist (plist-get new-status :song))))
+      (when empc-current-playlist
+	(setq new-song (aref empc-current-playlist (plist-get new-status :song)))))
     (unless (eq (plist-get empc-current-status :state) (plist-get new-status :state))
       (if (or (eq (plist-get new-status :state) 'play)
 	      (not (eq (plist-get new-song :pos) (plist-get empc-current-song :pos))))
-	  (empc-echo-current-song)
+	  (empc-echo-song new-song)
 	(empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop"))))
     (unless (eq (plist-get empc-current-status :playlist) (plist-get new-status :playlist))
       (empc-echo-notify "Playlist changed"))
