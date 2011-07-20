@@ -189,10 +189,10 @@ then update what needs to be."
       (let ((changed (cdr cell)))
 	(cond
 	 ((member changed '("player" "options"))
-	  (empc-send "status" 'empc-response-get-status))
+	  (empc-send-status))
 	 ((string= changed "playlist")
-	  (empc-send "status" 'empc-response-get-status)
-	  (empc-send "playlistinfo" 'empc-response-get-playlist)))))))
+	  (empc-send-status)
+	  (empc-send-playlistinfo)))))))
 
 (defun empc-handle-response (closure msg)
   "Retrieve the response from the server.
@@ -209,12 +209,9 @@ Check the error code and process it using CLOSURE."
 Send the password or retrieve available commands."
   (when empc-server-password
     (empc-send (concat "password " empc-server-password)))
-  (empc-send "commands" '(lambda (data)
-			   (setq empc-available-commands nil)
-			   (dolist (cell data)
-			     (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
-  (empc-send "status" 'empc-response-get-status)
-  (empc-send "playlistinfo" 'empc-response-get-playlist)
+  (empc-send-commands)
+  (empc-send-status)
+  (empc-send-playlistinfo)
   (setq empc-idle-state nil
 	empc-last-crossfade nil))
 
@@ -239,7 +236,7 @@ Send the password or retrieve available commands."
 	     (processp empc-process)
 	     (eq (process-status empc-process) 'open))
     (empc-leave-idle-state)
-    (empc-send "close"))
+    (empc-send-close))
   (when empc-queue
     (tq-close empc-queue))
   (setq empc-process nil
@@ -256,8 +253,7 @@ Send the password or retrieve available commands."
 enter idle state to accept notifications from the server."
   (unless (or empc-idle-state
 	      (cdr (tq-queue empc-queue)))
-    (tq-enqueue empc-queue "idle\n" empc-response-regexp
-		'empc-response-idle 'empc-handle-response t)
+    (empc-send-idle)
     (setq empc-idle-state t)))
 
 (defun empc-leave-idle-state ()
@@ -296,7 +292,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (interactive)
      (empc-leave-idle-state)
      (if arg
-	 (empc-send (concat ,(concat command " ") arg) ,closure)
+	 (empc-send (concat ,(concat command " ") arg "\n") ,closure)
        (empc-send ,command ,closure))))
 
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
@@ -306,7 +302,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (interactive)
      (empc-leave-idle-state)
      (if state
-	 (empc-send (concat ,(concat command " ") (int-to-string state)))
+	 (empc-send (concat ,(concat command " ") (int-to-string state) "\n"))
        (let ((,(if attr attr
 		 (intern command))
 	      (plist-get empc-current-status (quote ,(intern (concat ":" (if state-name
@@ -315,11 +311,13 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	 ,(if body
 	      `(progn ,@body)
 	    `(empc-send (concat ,command (if (= ,(if attr attr
-						   (intern command)) 1) " 0" " 1"))))))))
+						   (intern command)) 1) " 0" " 1") "\n")))))))
 
 ;; Querying MPD's status
-(empc-define-simple-command "status" 'empc-response-get-status)
+(empc-define-simple-command "clearerror")
 (empc-define-simple-command "currentsong")
+(empc-define-simple-command "idle" 'empc-response-idle)
+(empc-define-simple-command "status" 'empc-response-get-status)
 (empc-define-simple-command "stats")
 
 ;; Playback options
@@ -358,5 +356,24 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 
 ;; Stored playlists
 (empc-define-simple-command "listplaylists")
+
+;; The music database
+
+;; Stickers
+
+;; Connection settings
+(empc-define-simple-command "close")
+(empc-define-simple-command "kill")
+(empc-define-simple-command "ping")
+
+;; Audio output devices
+
+;; Reflection
+(empc-define-simple-command "commands" '(lambda (data)
+					  (setq empc-available-commands nil)
+					  (dolist (cell data)
+					    (setq empc-available-commands (cons (cdr cell) empc-available-commands)))))
+
+;; Client to client
 
 (provide 'empc)
