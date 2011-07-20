@@ -61,7 +61,7 @@
 (defvar empc-last-crossfade nil)
 (defvar empc-current-status nil)
 (defvar empc-current-playlist nil)
-(defvar empc-current-song nil)
+(defvar empc-current-playlist-songs nil)
 (defconst empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
@@ -127,20 +127,15 @@ form '('error (error-code . error-message))."
 (defun empc-update-status (new-status)
   "Determine the differences between the stored status and the new one
 then update what needs to be."
-  (let ((new-song empc-current-song))
-    (unless (and (eq (plist-get empc-current-status :song) (plist-get new-status :song))
-		 (eq (plist-get empc-current-song :pos) (plist-get new-status :song)))
-      (when empc-current-playlist
-	(setq new-song (aref empc-current-playlist (plist-get new-status :song)))))
-    (unless (eq (plist-get empc-current-status :state) (plist-get new-status :state))
-      (if (or (eq (plist-get new-status :state) 'play)
-	      (not (eq (plist-get new-song :pos) (plist-get empc-current-song :pos))))
-	  (empc-echo-song new-song)
+  (when empc-current-status
+    (unless (and (eq (plist-get empc-current-status :state) (plist-get new-status :state))
+		 (eq (plist-get empc-current-status :songid) (plist-get new-status :songid)))
+      (if (eq (plist-get new-status :state) 'play)
+	  (empc-echo-song (gethash (plist-get new-status :songid) empc-current-playlist-songs))
 	(empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop"))))
     (unless (eq (plist-get empc-current-status :playlist) (plist-get new-status :playlist))
-      (empc-echo-notify "Playlist changed"))
-    (setq empc-current-song new-song)
-    (setq empc-current-status new-status)))
+      (empc-echo-notify "Playlist changed")))
+  (setq empc-current-status new-status))
 
 (defun empc-response-get-status (data)
   "Arrange DATA into a plist and store it into EMPC-CURRENT-STATUS."
@@ -162,24 +157,29 @@ then update what needs to be."
     (empc-update-status new-status)))
 
 (defun empc-response-get-playlist (data)
-  "Arrange data into a list of plists representing the current playlist and store it into EMPC-CURRENT-PLAYLIST."
+  "Parse information regarding songs in current playlist and arrange it into a
+hash table `empc-current-playlist-songs'sorted by songid.
+songs order is kept into an avector `empc-current-playlist'."
+  (setq empc-current-playlist-songs (make-hash-table :rehash-threshold 1.0 :size (plist-get empc-current-status :playlistlength)))
   (setq empc-current-playlist (make-vector (plist-get empc-current-status :playlistlength) nil))
   (let ((song nil)
 	(index (- (length empc-current-playlist) 1)))
     (dolist (cell data)
       (let ((field (intern (concat ":" (car cell)))))
 	(when (and (eq field :id) song)
-	  (aset empc-current-playlist index song)
+	  (puthash (plist-get song :id) song empc-current-playlist-songs)
+	  (aset empc-current-playlist index (plist-get song :id))
 	  (setq song nil)
 	  (decf index))
 	(cond
 	 ((member field '(:time :track :date :pos :id))
-	  (plist-put song field (string-to-int (cdr cell))))
+	  (setq song (plist-put song field (string-to-int (cdr cell)))))
 	 (t (if (plist-get song field)
-		(plist-put song field (concat (plist-get song field) ", " (cdr cell)))
-	      (plist-put song field (cdr cell)))))))
+		(setq song (plist-put song field (concat (plist-get song field) ", " (cdr cell))))
+	      (setq song (plist-put song field (cdr cell))))))))
     (when (and song (>= index 0))
-      (aset empc-current-playlist index song))))
+      (puthast (plist-get song :id) song empc-current-playlist-songs)
+      (aset empc-current-playlist index (plist-get song :id)))))
 
 (defun empc-response-idle (data)
   "React from idle interruption."
@@ -245,8 +245,8 @@ Send the password or retrieve available commands."
 	empc-available-commands nil
 	empc-last-crossfade nil
 	empc-current-status nil
-	empc-current-playlist nil
-	empc-current-song nil))
+	empc-current-playlist-songs nil
+	empc-current-playlist nil))
 
 (defun empc-maybe-enter-idle-state ()
   "If not already in idle state and there is no other commands pending,
