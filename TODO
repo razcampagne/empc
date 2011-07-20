@@ -9,3 +9,5 @@
 
 * Write a macro defining commands requiring an argument.
   Let the possibility to use ido or anything (don't really know how to do that…)
+
+* Why do I get disconnected when updating the db?
