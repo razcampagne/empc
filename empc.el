@@ -168,15 +168,16 @@ then update what needs to be."
 	(index (- (length empc-current-playlist) 1)))
     (dolist (cell data)
       (let ((field (intern (concat ":" (car cell)))))
-	(when (and song
-		   (plist-get song field))
+	(when (and (eq field :id) song)
 	  (aset empc-current-playlist index song)
 	  (setq song nil)
 	  (decf index))
 	(cond
 	 ((member field '(:time :track :date :pos :id))
-	  (setq song (cons field (cons (string-to-int (cdr cell)) song))))
-	 (t (setq song (cons field (cons (cdr cell) song)))))))
+	  (plist-put song field (string-to-int (cdr cell))))
+	 (t (if (plist-get song field)
+		(plist-put song field (concat (plist-get song field) ", " (cdr cell)))
+	      (plist-put song field (cdr cell)))))))
     (when (and song (>= index 0))
       (aset empc-current-playlist index song))))
 
