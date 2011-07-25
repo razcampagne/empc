@@ -179,7 +179,7 @@ songs order is kept into an avector `empc-current-playlist'."
 		(setq song (plist-put song field (concat (plist-get song field) ", " (cdr cell))))
 	      (setq song (plist-put song field (cdr cell))))))))
     (when (and song (>= index 0))
-      (puthast (plist-get song :id) song empc-current-playlist-songs)
+      (puthash (plist-get song :id) song empc-current-playlist-songs)
       (aset empc-current-playlist index (plist-get song :id)))))
 
 (defun empc-response-idle (data)
