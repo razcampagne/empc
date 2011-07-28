@@ -1,13 +1,17 @@
 #				-*- org -*-
 
-* Store playlist as a Hash table with songid as the key.
+* DONE Store playlist as a Hash table with songid as the key.
+  CLOSED: [2011-07-28 Thu 14:28]
   Then add a vector that binds position to songid.
 
-* Rewrite empc-update-status
+* TODO Allow the call of multiple closures when receiving server responses.
+  Maybe use keywords as :before, :after and the likes.
+
+* TODO Rewrite empc-update-status.
   should be called only at the proper moment with the diff computed before in
   parameter.
 
-* Write a macro defining commands requiring an argument.
+* TODO Write a macro defining commands requiring an argument.
   Let the possibility to use ido or anything (don't really know how to do that…)
 
-* Why do I get disconnected when updating the db?
+* TODO Why do I get disconnected when updating the db?
