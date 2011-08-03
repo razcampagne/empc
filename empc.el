@@ -83,9 +83,9 @@ return at the end of a request.")
 
 (defun empc-echo-notify (msg)
   "Notify MSG using notification system if available, in echo area if not."
-  (if (eq window-system 'x)
-      (start-process "empc-notify" nil "notify-send" "Music Player Daemon" msg)
-    (message msg)))
+  (when (eq window-system 'x)
+    (start-process "empc-notify" nil "notify-send" "Music Player Daemon" msg))
+  (message (concat "empc: " msg)))
 
 (defun empc-echo-song (song)
   "Notify SONG."
