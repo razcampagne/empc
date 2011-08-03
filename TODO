@@ -15,3 +15,4 @@
   Let the possibility to use ido or anything (don't really know how to do that…)
 
 * TODO Why do I get disconnected when updating the db?
+* TODO Start the streaming process when receiving an idle interruption
