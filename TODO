@@ -4,8 +4,9 @@
   CLOSED: [2011-07-28 Thu 14:28]
   Then add a vector that binds position to songid.
 
-* TODO Allow the call of multiple closures when receiving server responses.
-  Maybe use keywords as :before, :after and the likes.
+* DONE Allow the call of multiple closures when receiving server responses.
+  CLOSED: [2011-08-05 Fri 14:59]
+  Call all the closures specified in order.
 
 * TODO Rewrite with-updated-status.
   If disconnected when using the `pause' command, it reconnects but uses wrong

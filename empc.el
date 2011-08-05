@@ -198,14 +198,17 @@ songs order is kept into an avector `empc-current-playlist'."
 	  (empc-send-status)
 	  (empc-send-playlistinfo)))))))
 
-(defun empc-handle-response (closure msg)
+(defun empc-handle-response (closures msg)
   "Retrieve the response from the server.
-Check the error code and process it using CLOSURE."
+Check the error code and process it using CLOSURES."
   (let ((data (empc-response-parse-message msg)))
     (if (eq (car data) 'error)
 	(empc-echo-error (cdr data))
-      (if closure
-	  (funcall closure data))))
+      (when closures
+	(if (listp closures)
+	    (dolist (closure closures)
+	      (funcall closure data))
+	  (funcall closures data)))))
   (empc-maybe-enter-idle-state))
 
 (defun empc-initialize ()
