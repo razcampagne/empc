@@ -8,7 +8,8 @@
   CLOSED: [2011-08-05 Fri 14:59]
   Call all the closures specified in order.
 
-* TODO Rewrite with-updated-status.
+* DONE Rewrite with-updated-status.
+  CLOSED: [2011-08-05 Fri 15:31]
   If disconnected when using the `pause' command, it reconnects but uses wrong
   status information
 

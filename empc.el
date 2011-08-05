@@ -292,6 +292,12 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 					(eq (process-status empc-process) 'open))
 			       (empc-toggle-pause 1))))))
 
+(defmacro with-updated-status (&rest body)
+  "Update the status and execute the forms in BODY."
+  `(if empc-current-status
+       ,@body
+     (empc-send "status\n" '(empc-response-get-status (lambda (data) ,@body)))))
+
 (defmacro empc-define-simple-command (command &optional closure)
   "Define a simple command that doesn't need an argument."
   `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
@@ -310,15 +316,16 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (empc-leave-idle-state)
      (if state
 	 (empc-send (concat ,(concat command " ") (int-to-string state) "\n"))
-       (let ((,(if attr attr
-		 (intern command))
-	      (plist-get empc-current-status (quote ,(intern (concat ":" (if state-name
-									     state-name
-									   command)))))))
-	 ,(if body
-	      `(progn ,@body)
-	    `(empc-send (concat ,command (if (= ,(if attr attr
-						   (intern command)) 1) " 0" " 1") "\n")))))))
+       (with-updated-status
+	(let ((,(if attr attr
+		  (intern command))
+	       (plist-get empc-current-status (quote ,(intern (concat ":" (if state-name
+									      state-name
+									    command)))))))
+	  ,(if body
+	       `(progn ,@body)
+	     `(empc-send (concat ,command (if (= ,(if attr attr
+						    (intern command)) 1) " 0" " 1") "\n"))))))))
 
 ;; Querying MPD's status
 (empc-define-simple-command "clearerror")
