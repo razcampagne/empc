@@ -7,6 +7,10 @@
 * TODO Allow the call of multiple closures when receiving server responses.
   Maybe use keywords as :before, :after and the likes.
 
+* TODO Rewrite with-updated-status.
+  If disconnected when using the `pause' command, it reconnects but uses wrong
+  status information
+
 * TODO Rewrite empc-update-status.
   should be called only at the proper moment with the diff computed before in
   parameter.
