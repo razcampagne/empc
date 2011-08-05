@@ -13,6 +13,9 @@
   If disconnected when using the `pause' command, it reconnects but uses wrong
   status information
 
+* DONE Start the streaming process when receiving an idle interruption
+  CLOSED: [2011-08-05 Fri 15:38]
+
 * TODO Rewrite empc-update-status.
   should be called only at the proper moment with the diff computed before in
   parameter.
@@ -21,4 +24,3 @@
   Let the possibility to use ido or anything (don't really know how to do that…)
 
 * TODO Why do I get disconnected when updating the db?
-* TODO Start the streaming process when receiving an idle interruption

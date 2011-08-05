@@ -135,7 +135,10 @@ then update what needs to be."
     (unless (and (eq (plist-get empc-current-status :state) (plist-get new-status :state))
 		 (eq (plist-get empc-current-status :songid) (plist-get new-status :songid)))
       (if (eq (plist-get new-status :state) 'play)
-	  (empc-echo-song (gethash (plist-get new-status :songid) empc-current-playlist-songs))
+	  (progn
+	    (unless (eq (plist-get empc-current-status :state) 'play)
+	      (empc-stream-start))
+	    (empc-echo-song (gethash (plist-get new-status :songid) empc-current-playlist-songs)))
 	(empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop"))))
     (unless (eq (plist-get empc-current-status :playlist) (plist-get new-status :playlist))
       (empc-echo-notify "Playlist changed")))
@@ -279,11 +282,10 @@ Parse the response using the function FN which will then call CLOSURE."
   (tq-enqueue empc-queue command empc-response-regexp
 	      closure 'empc-handle-response t))
 
-(defun empc-stream-start (status)
+(defun empc-stream-start ()
   "Start the stream process if the command to mpd returned successfully.
 If the stream process is killed for whatever the reason, pause mpd if possible."
-  (when (and empc-stream-url empc-stream-program
-	     (eq (plist-get status 'error) nil))
+  (when (and empc-stream-url empc-stream-program)
     (set-process-sentinel (start-process "empc-stream" nil empc-stream-program empc-stream-url)
 			  '(lambda (proc event)
 			     (when (and (eq (process-status proc) 'exit)
@@ -357,9 +359,9 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 			     ((eq state 'play)
 			      (empc-send "pause 1"))
 			     ((eq state 'pause)
-			      (empc-send "pause 0" 'empc-stream-start))
+			      (empc-send "pause 0"))
 			     (t (empc-send-play))))
-(empc-define-simple-command "play" 'empc-stream-start)
+(empc-define-simple-command "play")
 (empc-define-simple-command "previous")
 (empc-define-simple-command "stop")
 
