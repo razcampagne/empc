@@ -89,7 +89,8 @@ return at the end of a request.")
 
 (defun empc-echo-song (song)
   "Notify SONG."
-  (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1)) "/" (int-to-string (plist-get empc-current-status :playlistlength)) "] "
+  (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
+			    "/" (int-to-string (plist-get empc-current-status :playlistlength)) "] "
 			    (if (and (plist-get song :artist) (plist-get song :title))
 				(concat (plist-get song :artist) " - " (plist-get song :title))
 			      (plist-get song :file)))))
