@@ -20,7 +20,17 @@
   should be called only at the proper moment with the diff computed before in
   parameter.
 
+* TODO Display informations in the mode-line.
+
+* TODO Display the playlist in a buffer.
+
+* TODO Allow tampering the playlist.
+
+* TODO Display the music database in another buffer.
+
+* TODO Allow interactions between the database and the playlist.
+
 * TODO Write a macro defining commands requiring an argument.
-  Let the possibility to use ido or anything (don't really know how to do that…)
+  Let the possibility to use ido or anything
 
 * TODO Why do I get disconnected when updating the db?
