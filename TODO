@@ -1,14 +1,14 @@
 #				-*- org -*-
 
-* DONE Store playlist as a Hash table with songid as the key.
+* DONE Store playlist as a Hash table with songid as the key
   CLOSED: [2011-07-28 Thu 14:28]
   Then add a vector that binds position to songid.
 
-* DONE Allow the call of multiple closures when receiving server responses.
+* DONE Allow the call of multiple closures when receiving server responses
   CLOSED: [2011-08-05 Fri 14:59]
   Call all the closures specified in order.
 
-* DONE Rewrite with-updated-status.
+* DONE Rewrite with-updated-status
   CLOSED: [2011-08-05 Fri 15:31]
   If disconnected when using the `pause' command, it reconnects but uses wrong
   status information
@@ -16,23 +16,26 @@
 * DONE Start the streaming process when receiving an idle interruption
   CLOSED: [2011-08-05 Fri 15:38]
 
-* TODO Rewrite empc-update-status.
+* DONE Rewrite empc-update-status
+  CLOSED: [2011-08-09 Tue 16:47]
   should be called only at the proper moment with the diff computed before in
   parameter.
 
-* TODO Recreate the playlist using only the diff between the current version and the previous.
+* TODO Allow the use of command_lists
 
-* TODO Display informations in the mode-line.
+* TODO Recreate the playlist using only the diff between the current version and the previous
 
-* TODO Display the playlist in a buffer.
+* TODO Display informations in the mode-line
 
-* TODO Allow tampering the playlist.
+* TODO Display the playlist in a buffer
 
-* TODO Display the music database in another buffer.
+* TODO Allow tampering the playlist
 
-* TODO Allow interactions between the database and the playlist.
+* TODO Display the music database in another buffer
 
-* TODO Write a macro defining commands requiring an argument.
+* TODO Allow interactions between the database and the playlist
+
+* TODO Write a macro defining commands requiring an argument
   Let the possibility to use ido or anything
 
 * TODO Why do I get disconnected when updating the db?
