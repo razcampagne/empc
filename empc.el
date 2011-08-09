@@ -55,6 +55,7 @@
   :group 'empc-debug)
 
 (defvar empc-process nil)
+(defvar empc-stream-process nil)
 (defvar empc-queue nil)
 (defvar empc-idle-state nil)
 (defvar empc-available-commands nil)
@@ -73,6 +74,16 @@ return at the end of a request.")
     (cond ((eq status 'closed)
 	   (when empc-verbose
 	     (message "empc: connection closed"))))))
+
+(defun empc-stream-process-sentinel (proc event)
+  "Process sentinel for `empc-stream-process'."
+  (when (and (eq (process-status proc) 'exit)
+	     empc-process
+	     (processp empc-process)
+	     (eq (process-status empc-process) 'open)
+	     (eq (plist-get empc-current-status :state) 'play))
+    (empc-toggle-pause 1))
+  (setq empc-stream-process nil))
 
 (defun empc-echo-minibuffer (msg)
   "Print the response into the minibuffer if EMPC-VERBOSE is non nil."
@@ -250,6 +261,7 @@ Send the password or retrieve available commands."
   (when empc-queue
     (tq-close empc-queue))
   (setq empc-process nil
+	empc-stream-process nil
 	empc-queue nil
 	empc-idle-state nil
 	empc-available-commands nil
@@ -285,14 +297,10 @@ Parse the response using the function FN which will then call CLOSURE."
 (defun empc-stream-start ()
   "Start the stream process if the command to mpd returned successfully.
 If the stream process is killed for whatever the reason, pause mpd if possible."
-  (when (and empc-stream-url empc-stream-program)
-    (set-process-sentinel (start-process "empc-stream" nil empc-stream-program empc-stream-url)
-			  '(lambda (proc event)
-			     (when (and (eq (process-status proc) 'exit)
-					empc-process
-					(processp empc-process)
-					(eq (process-status empc-process) 'open))
-			       (empc-toggle-pause 1))))))
+  (when (and (not empc-stream-process)
+	     empc-stream-url empc-stream-program)
+    (setq empc-stream-process (start-process "empc-stream" nil empc-stream-program empc-stream-url))
+    (set-process-sentinel empc-stream-process 'empc-stream-process-sentinel)))
 
 (defmacro with-updated-status (&rest body)
   "Update the status and execute the forms in BODY."
