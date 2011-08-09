@@ -139,40 +139,53 @@ form '('error (error-code . error-message))."
 		(setq result (cons cell result)))))
 	  result)))))
 
-(defun empc-update-status (new-status)
-  "Determine the differences between the stored status and the new one
-then update what needs to be."
-  (when empc-current-status
-    (unless (and (eq (plist-get empc-current-status :state) (plist-get new-status :state))
-		 (eq (plist-get empc-current-status :songid) (plist-get new-status :songid)))
-      (if (eq (plist-get new-status :state) 'play)
-	  (progn
-	    (unless (eq (plist-get empc-current-status :state) 'play)
-	      (empc-stream-start))
-	    (empc-echo-song (gethash (plist-get new-status :songid) empc-current-playlist-songs)))
-	(empc-echo-notify (if (eq (plist-get new-status :state) 'pause) "Pause" "Stop"))))
-    (unless (eq (plist-get empc-current-status :playlist) (plist-get new-status :playlist))
-      (empc-echo-notify "Playlist changed")))
-  (setq empc-current-status new-status))
-
 (defun empc-response-get-status (data)
-  "Arrange DATA into a plist and store it into EMPC-CURRENT-STATUS."
-  (let ((new-status nil))
-    (dolist (cell data)
-      (let ((attr (intern (concat ":" (car cell)))))
-	(setq new-status
-	      (cond
-	       ((member attr '(:volume :repeat :random :single :consume :playlist
-				       :playlistlength :song :songid :nextsong :nextsongid
-				       :bitrate :xfade :mixrampdb :mixrampdelay :updating_db))
-		(plist-put new-status attr (string-to-number (cdr cell))))
-	       ((and (eq attr :state) (member (cdr cell) '("play" "pause" "stop")))
-		(plist-put new-status :state (intern (cdr cell))))
-	       ((and (eq attr :time) (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" (cdr cell)))
-		(plist-put new-status :time-elapsed (string-to-number (match-string 1 (cdr cell))))
-		(plist-put new-status :time-total (string-to-number (match-string 2 (cdr cell)))))
-	       (t (plist-put new-status attr (cdr cell)))))))
-    (empc-update-status new-status)))
+  "Parse DATA to get a diff with `empc-current-status'.
+
+According to what is in the diff, several actions can be performed:
+	if :state or :songid is changed, report it to the user,
+	if :state is set to 'play, start the streaming process."
+  (let ((status-diff (empc-diff-status data))
+	(notify nil))
+    (when (plist-get status-diff :songid)
+      (setq notify '(lambda () (empc-echo-song (gethash (plist-get status-diff :songid)
+							empc-current-playlist-songs)))))
+    (when (plist-get status-diff :state)
+      (if (eq (plist-get status-diff :state) 'play)
+	  (progn
+	    (unless notify
+	      (setq notify '(lambda () (empc-echo-song (gethash (plist-get empc-current-status :songid)
+								empc-current-playlist-songs)))))
+	    (empc-stream-start))
+	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
+    (funcall notify)))
+
+(defun empc-parse-status-attr (attr value)
+  "Parse a single attribute from status."
+  (cond
+   ((eq value nil) nil)
+   ((member attr '(:volume :repeat :random :single :consume :playlist :playlistlength
+			   :song :songid :nextsong :nextsongid :bitrate :xfade :mixrampdb
+			   :mixrampdelay :updating_db))
+    (string-to-number value))
+   ((and (eq attr :state) (member value '("play" "pause" "stop")))
+    (intern value))
+   ((and (eq attr :time) (string-match "^\\([0-9]*\\):\\([0-9]*\\)$" value))
+    (cons (string-to-number (match-string 1 value))
+	  (string-to-number (match-string 2 value))))
+   (t value)))
+
+(defun empc-diff-status (data)
+  "Get the diff from `empc-current-status' and server response."
+  (let ((status-diff nil)
+	(attributes '(:volume :repeat :random :single :consume :playlist :playlistlength :state
+			      :song :songid :nextsong :nextsongid :time :elapsed :bitrate :xfade
+			      :mixrampdb :mixrampdelay :audio :updating_db :error)))
+    (dolist (attr attributes status-diff)
+      (let ((value (empc-parse-status-attr attr (cdr (assoc (substring (symbol-name attr) 1) data)))))
+	(unless (equal (plist-get empc-current-status attr) value)
+	  (setq status-diff (plist-put status-diff attr value))
+	  (setq empc-current-status (plist-put empc-current-status attr value)))))))
 
 (defun empc-response-get-playlist (data)
   "Parse information regarding songs in current playlist and arrange it into a
