@@ -204,7 +204,7 @@ songs order is kept into an avector `empc-current-playlist'."
 	  (decf index))
 	(cond
 	 ((member field '(:time :track :date :pos :id))
-	  (setq song (plist-put song field (string-to-int (cdr cell)))))
+	  (setq song (plist-put song field (string-to-number (cdr cell)))))
 	 (t (if (plist-get song field)
 		(setq song (plist-put song field (concat (plist-get song field) ", " (cdr cell))))
 	      (setq song (plist-put song field (cdr cell))))))))
