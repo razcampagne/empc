@@ -69,7 +69,7 @@
 return at the end of a request.")
 
 (defun empc-process-sentinel (proc event)
-  "Process sentinel for empc-process."
+  "Process sentinel for `empc-process'."
   (let ((status (process-status proc)))
     (cond ((eq status 'closed)
 	   (when empc-verbose
