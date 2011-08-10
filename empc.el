@@ -158,7 +158,8 @@ According to what is in the diff, several actions can be performed:
 								empc-current-playlist-songs)))))
 	    (empc-stream-start))
 	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
-    (funcall notify)))
+    (when notify
+      (funcall notify))))
 
 (defun empc-parse-status-attr (attr value)
   "Parse a single attribute from status."
