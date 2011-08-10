@@ -304,7 +304,6 @@ Send the password or retrieve available commands."
   (when empc-queue
     (tq-close empc-queue))
   (setq empc-process nil
-	empc-stream-process nil
 	empc-queue nil
 	empc-idle-state nil
 	empc-available-commands nil
