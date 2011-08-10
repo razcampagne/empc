@@ -21,7 +21,8 @@
   should be called only at the proper moment with the diff computed before in
   parameter.
 
-* TODO Allow the use of command_lists
+* DONE Allow the use of command_lists
+  CLOSED: [2011-08-10 Wed 15:44]
 
 * TODO Recreate the playlist using only the diff between the current version and the previous
 

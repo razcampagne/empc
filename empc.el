@@ -112,11 +112,12 @@ return at the end of a request.")
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
-Return nil if the line is not of the form \"key: value\"."
+If the line is not of the form \"key: value\",
+check if it matches \"list_OK\"."
   (if (string-match "\\([^:\n]+\\):\\s-*\\(.+\\)" line)
       (cons (downcase (match-string 1 line))
 	    (match-string 2 line))
-    nil))
+    (string= line "list_OK")))
 
 (defun empc-response-parse-message (msg)
   "Check the result code and parse the response into an alist.
@@ -132,12 +133,21 @@ form '('error (error-code . error-message))."
 	       (string-match "^ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)" status))
 	  (cons 'error (cons (match-string 1 status)
 			     (match-string 2 status)))
-	(let ((result nil))
-	  (dolist (line data)
+	(let ((result nil)
+	      (response nil))
+	  (dolist (line data (if result (reverse result) response))
 	    (let ((cell (empc-response-parse-line line)))
 	      (when cell
-		(setq result (cons cell result)))))
-	  result)))))
+		(if (consp cell)
+		    (setq response (cons cell response))
+		  (setq result (cons response result)
+			response nil))))))))))
+
+(defun empc-response-get-commands (data)
+  "Parse DATA to get the available commands."
+  (setq empc-available-commands nil)
+  (dolist (cell data)
+    (setq empc-available-commands (cons (cdr cell) empc-available-commands))))
 
 (defun empc-response-get-status (data)
   "Parse DATA to get a diff with `empc-current-status'.
@@ -148,14 +158,16 @@ According to what is in the diff, several actions can be performed:
   (let ((status-diff (empc-diff-status data))
 	(notify nil))
     (when (plist-get status-diff :songid)
-      (setq notify '(lambda () (empc-echo-song (gethash (plist-get status-diff :songid)
-							empc-current-playlist-songs)))))
+      (setq notify '(lambda () (when empc-current-playlist-songs
+				 (empc-echo-song (gethash (plist-get status-diff :songid)
+							  empc-current-playlist-songs))))))
     (when (plist-get status-diff :state)
       (if (eq (plist-get status-diff :state) 'play)
 	  (progn
 	    (unless notify
-	      (setq notify '(lambda () (empc-echo-song (gethash (plist-get empc-current-status :songid)
-								empc-current-playlist-songs)))))
+	      (setq notify '(lambda () (when empc-current-playlist-songs
+					 (empc-echo-song (gethash (plist-get empc-current-status :songid)
+								  empc-current-playlist-songs))))))
 	    (empc-stream-start))
 	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
     (when notify
@@ -226,27 +238,44 @@ songs order is kept into an avector `empc-current-playlist'."
 	  (empc-send-status)
 	  (empc-send-playlistinfo)))))))
 
+(defun empc-handle-closure-call (closures data)
+  "If CLOSURES is a list of function, call them in turn with DATA
+  as parameter."
+  (when closures
+    (if (and (listp closures) (not (member (car closures) '(quote lambda))))
+	(dolist (closure closures (reverse notifications))
+	  (funcall closure data))
+      (funcall closures data))))
+
 (defun empc-handle-response (closures msg)
   "Retrieve the response from the server.
 Check the error code and process it using CLOSURES."
   (let ((data (empc-response-parse-message msg)))
     (if (eq (car data) 'error)
 	(empc-echo-error (cdr data))
-      (when closures
-	(if (listp closures)
-	    (dolist (closure closures)
-	      (funcall closure data))
-	  (funcall closures data)))))
+      (empc-handle-closure-call closures data)))
+  (empc-maybe-enter-idle-state))
+
+(defun empc-handle-response-list (closures msg)
+  "Retrieve the responses from the server.
+Check the error code and process the different responses to the
+commands send as command_list."
+  (let ((data (empc-response-parse-message msg)))
+    (if (eq (car data) 'error)
+	(empc-echo-error (cdr data))
+      (dolist (closure closures)
+	(empc-handle-closure-call closure (car data))
+	(setq data (cdr data)))))
   (empc-maybe-enter-idle-state))
 
 (defun empc-initialize ()
   "Initialize the client after connection.
 Send the password or retrieve available commands."
-  (when empc-server-password
-    (empc-send (concat "password " empc-server-password)))
-  (empc-send-commands)
-  (empc-send-status)
-  (empc-send-playlistinfo)
+  (empc-send-list (when empc-server-password
+		    `(,(concat "password " empc-server-password)))
+		  '("commands" . empc-response-get-commands)
+		  '("status" . empc-response-get-status)
+		  '("playlistinfo" . empc-response-get-playlist))
   (setq empc-idle-state nil
 	empc-last-crossfade nil))
 
@@ -298,15 +327,27 @@ enter idle state to accept notifications from the server."
     (process-send-string empc-process "noidle\n")
     (setq empc-idle-state nil)))
 
-(defun empc-send (command &optional closure)
+(defun empc-send (command &optional closure handler)
   "Send COMMAND to the mpd server.
-Parse the response using the function FN which will then call CLOSURE."
+CLOSURE will be called on the parsed response."
   (empc-ensure-connected)
   (empc-leave-idle-state)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
   (tq-enqueue empc-queue command empc-response-regexp
-	      closure 'empc-handle-response t))
+	      closure (if handler handler 'empc-handle-response) t))
+
+(defun empc-send-list (&rest commands)
+  "Send COMMANDS to the mpd server using command_list.
+COMMANDS is a list of cons of the form: '(COMMAND . CLOSURE),
+where CLOSURE (may be a list of functions) will be called on the parsed response."
+  (let ((command "command_list_ok_begin\n")
+	(closures nil))
+    (setq closures (dolist (cell commands (reverse closures))
+		     (setq command (concat command (car cell) "\n"))
+		     (setq closures (cons (cdr cell) closures))))
+    (setq command (concat command "command_list_end\n"))
+    (empc-send command closures 'empc-handle-response-list)))
 
 (defun empc-stream-start ()
   "Start the stream process if the command to mpd returned successfully.
