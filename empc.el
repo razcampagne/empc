@@ -98,8 +98,11 @@ return at the end of a request.")
     (start-process "empc-notify" nil "notify-send" "Music Player Daemon" msg))
   (message (concat "empc: " msg)))
 
-(defun empc-echo-song (song)
+(defun empc-echo-song (&optional song)
   "Notify SONG."
+  (interactive)
+  (unless song
+    (setq song (gethash (plist-get empc-current-status :songid) empc-current-playlist-songs)))
   (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
 			    "/" (int-to-string (plist-get empc-current-status :playlistlength)) "] "
 			    (if (and (plist-get song :artist) (plist-get song :title))
@@ -166,8 +169,7 @@ According to what is in the diff, several actions can be performed:
 	  (progn
 	    (unless notify
 	      (setq notify '(lambda () (when empc-current-playlist-songs
-					 (empc-echo-song (gethash (plist-get empc-current-status :songid)
-								  empc-current-playlist-songs))))))
+					 (empc-echo-song)))))
 	    (empc-stream-start))
 	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
     (when notify
