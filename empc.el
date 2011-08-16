@@ -152,6 +152,10 @@ form '('error (error-code . error-message))."
   (dolist (cell data)
     (setq empc-available-commands (cons (cdr cell) empc-available-commands))))
 
+(defun empc-status-on/off-stringify (status key)
+  "Return `on' or `off' if KEY is active or inactive in STATUS."
+  (if (= (plist-get status key) 0) "off" "on"))
+
 (defun empc-response-get-status (data)
   "Parse DATA to get a diff with `empc-current-status'.
 
@@ -172,6 +176,15 @@ According to what is in the diff, several actions can be performed:
 					 (empc-echo-song)))))
 	    (empc-stream-start))
 	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
+    (when (or (plist-member status-diff :repeat) (plist-member status-diff :random)
+	      (plist-member status-diff :single) (plist-member status-diff :consume)
+	      (plist-member status-diff :xfade))
+      (setq notify '(lambda () (empc-echo-notify (format "repeat: %s, random: %s, single: %s, consume: %s, crossfade: %s"
+							 (empc-status-on/off-stringify empc-current-status :repeat)
+							 (empc-status-on/off-stringify empc-current-status :random)
+							 (empc-status-on/off-stringify empc-current-status :single)
+							 (empc-status-on/off-stringify empc-current-status :consume)
+							 (empc-status-on/off-stringify empc-current-status :xfade))))))
     (when notify
       (funcall notify))))
 
