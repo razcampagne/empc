@@ -27,7 +27,8 @@
 * DONE Display informations in the mode-line
   CLOSED: [2011-08-18 Thu 17:16]
 
-* TODO Display the playlist in a buffer
+* DONE Display the playlist in a buffer
+  CLOSED: [2011-08-18 Thu 19:55]
 
 * TODO Allow tampering the playlist
 

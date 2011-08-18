@@ -198,7 +198,8 @@ According to what is in the diff, several actions can be performed:
 							 (empc-status-on/off-stringify empc-current-status :consume)
 							 (empc-status-on/off-stringify empc-current-status :xfade))))))
     (when notify
-      (funcall notify))))
+      (funcall notify))
+    (empc-playlist-goto-current-song)))
 
 (defun empc-parse-status-attr (attr value)
   "Parse a single attribute from status."
@@ -227,6 +228,36 @@ According to what is in the diff, several actions can be performed:
 	  (setq status-diff (plist-put status-diff attr value))
 	  (setq empc-current-status (plist-put empc-current-status attr value)))))))
 
+(defun empc-playlist-goto-current-song ()
+  "Put point at currently playing song."
+  (when (get-buffer "*empc*")
+  (let ((buffer nil))
+    (dolist (frame (frame-list))
+      (with-selected-frame frame
+	(when (get-buffer-window "*empc*")
+	  (setq buffer (get-buffer-window "*empc*"))
+	  (with-selected-window buffer
+	    (goto-char (point-min))
+	    (forward-line (plist-get empc-current-status :song))))))
+    (unless buffer
+      (with-current-buffer "*empc*"
+	(goto-char (point-min))
+	(forward-line (plist-get empc-current-status :song)))))))
+
+(defun empc-populate-playlist-buffer ()
+  "Write playlist into the *empc* buffer."
+  (save-window-excursion
+    (empc-switch-to-playlist)
+    (let ((buffer-read-only nil))
+      (erase-buffer)
+      (when empc-current-playlist-songs
+	(dotimes (pos (length empc-current-playlist))
+	  (let ((song (gethash (elt empc-current-playlist pos) empc-current-playlist-songs)))
+	    (insert (if (and (plist-member song :artist) (plist-member song :title))
+			(concat (plist-get song :artist) " - " (plist-get song :title))
+		      (plist-get song :file)) "\n"))))))
+  (empc-playlist-goto-current-song))
+
 (defun empc-response-get-playlist (data)
   "Parse information regarding songs in current playlist and arrange it into a
 hash table `empc-current-playlist-songs'sorted by songid.
@@ -250,7 +281,8 @@ songs order is kept into an avector `empc-current-playlist'."
 	      (setq song (plist-put song field (cdr cell))))))))
     (when (and song (>= index 0))
       (puthash (plist-get song :id) song empc-current-playlist-songs)
-      (aset empc-current-playlist index (plist-get song :id)))))
+      (aset empc-current-playlist index (plist-get song :id))))
+  (empc-populate-playlist-buffer))
 
 (defun empc-response-idle (data)
   "React from idle interruption."
@@ -340,6 +372,8 @@ Send the password or retrieve available commands."
   (when empc-queue
     (tq-close empc-queue))
   (empc-mode-line nil)
+  (when (get-buffer "*empc*")
+    (kill-buffer "*empc*"))
   (setq empc-process nil
 	empc-queue nil
 	empc-idle-state nil
@@ -392,6 +426,21 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	     empc-stream-url empc-stream-program)
     (setq empc-stream-process (start-process "empc-stream" nil empc-stream-program empc-stream-url))
     (set-process-sentinel empc-stream-process 'empc-stream-process-sentinel)))
+
+(defun empc-playlist-mode ()
+  "empc playlist mode."
+  (setq major-mode 'empc-playlist-mode)
+  (setq mode-name "empc-playlist")
+  (setq buffer-read-only t))
+
+(defun empc-switch-to-playlist ()
+  "Switch to the playlist buffer."
+  (cond
+   ((get-buffer-window "*empc*")
+    (select-window (get-buffer-window "*empc*")))
+   (t
+    (switch-to-buffer "*empc*")))
+   (empc-playlist-mode))
 
 (defmacro with-updated-status (&rest body)
   "Update the status and execute the forms in BODY."
