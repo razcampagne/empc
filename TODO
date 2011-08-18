@@ -24,8 +24,6 @@
 * DONE Allow the use of command_lists
   CLOSED: [2011-08-10 Wed 15:44]
 
-* TODO Recreate the playlist using only the diff between the current version and the previous
-
 * TODO Display informations in the mode-line
 
 * TODO Display the playlist in a buffer
@@ -38,5 +36,10 @@
 
 * TODO Write a macro defining commands requiring an argument
   Let the possibility to use ido or anything
+
+* TODO Let the user easily create its own multi commands using predefined keywords
+  Create these keywords in the various macro definitions
+
+* TODO Recreate the playlist using only the diff between the current version and the previous
 
 * TODO Why do I get disconnected when updating the db?
