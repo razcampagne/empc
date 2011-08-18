@@ -24,7 +24,8 @@
 * DONE Allow the use of command_lists
   CLOSED: [2011-08-10 Wed 15:44]
 
-* TODO Display informations in the mode-line
+* DONE Display informations in the mode-line
+  CLOSED: [2011-08-18 Thu 17:16]
 
 * TODO Display the playlist in a buffer
 

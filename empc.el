@@ -63,6 +63,7 @@
 (defvar empc-current-status nil)
 (defvar empc-current-playlist nil)
 (defvar empc-current-playlist-songs nil)
+(defvar empc-mode-line-string "")
 (defconst empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
@@ -99,7 +100,7 @@ return at the end of a request.")
   (message (concat "empc: " msg)))
 
 (defun empc-echo-song (&optional song)
-  "Notify SONG."
+  "Notify SONG in the echo area."
   (interactive)
   (unless song
     (setq song (gethash (plist-get empc-current-status :songid) empc-current-playlist-songs)))
@@ -109,9 +110,20 @@ return at the end of a request.")
 				(concat (plist-get song :artist) " - " (plist-get song :title))
 			      (plist-get song :file)))))
 
-(defun empc-make-modeline ()
-  "Create the string to insert into the modeline."
-  )
+(defun empc-mode-line-notify (msg)
+  "Change the string to write in the mode-line and force-update it."
+  (setq empc-mode-line-string (concat " " msg))
+  (force-mode-line-update))
+
+(defun empc-mode-line-song (&optional song)
+  "Notify SONG in the mode-line."
+  (unless song
+    (setq song (gethash (plist-get empc-current-status :songid) empc-current-playlist-songs)))
+  (empc-mode-line-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
+				 "/" (int-to-string (plist-get empc-current-status :playlistlength)) "] "
+				 (if (and (plist-get song :artist) (plist-get song :title))
+				     (concat (plist-get song :artist) " - " (plist-get song :title))
+				   (plist-get song :file)))))
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
@@ -166,16 +178,16 @@ According to what is in the diff, several actions can be performed:
 	(notify nil))
     (when (plist-get status-diff :songid)
       (setq notify '(lambda () (when empc-current-playlist-songs
-				 (empc-echo-song (gethash (plist-get status-diff :songid)
+				 (empc-mode-line-song (gethash (plist-get status-diff :songid)
 							  empc-current-playlist-songs))))))
     (when (plist-get status-diff :state)
       (if (eq (plist-get status-diff :state) 'play)
 	  (progn
 	    (unless notify
 	      (setq notify '(lambda () (when empc-current-playlist-songs
-					 (empc-echo-song)))))
+					 (empc-mode-line-song)))))
 	    (empc-stream-start))
-	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
+	(setq notify '(lambda () (empc-mode-line-notify (symbol-name (plist-get status-diff :state)))))))
     (when (or (plist-member status-diff :repeat) (plist-member status-diff :random)
 	      (plist-member status-diff :single) (plist-member status-diff :consume)
 	      (plist-member status-diff :xfade))
@@ -283,6 +295,14 @@ commands send as command_list."
 	(setq data (cdr data)))))
   (empc-maybe-enter-idle-state))
 
+(defun empc-mode-line (arg)
+  "Add empc info to the mode-line if ARG is non-nil, remove if
+ARG is nil."
+  (interactive "p")
+  (if arg
+      (add-to-list 'global-mode-string 'empc-mode-line-string)
+    (setq global-mode-string (remove 'empc-mode-line-string global-mode-string))))
+
 (defun empc-initialize ()
   "Initialize the client after connection.
 Send the password or retrieve available commands."
@@ -291,6 +311,7 @@ Send the password or retrieve available commands."
 		  '("commands" . empc-response-get-commands)
 		  '("status" . empc-response-get-status)
 		  '("playlistinfo" . empc-response-get-playlist))
+  (empc-mode-line t)
   (setq empc-idle-state nil
 	empc-last-crossfade nil))
 
@@ -318,6 +339,7 @@ Send the password or retrieve available commands."
     (empc-send-close))
   (when empc-queue
     (tq-close empc-queue))
+  (empc-mode-line nil)
   (setq empc-process nil
 	empc-queue nil
 	empc-idle-state nil
