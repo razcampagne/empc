@@ -267,7 +267,7 @@ songs order is kept into an avector `empc-current-playlist'."
 Check the error code and process it using CLOSURES."
   (let ((data (empc-response-parse-message msg)))
     (if (eq (car data) 'error)
-	(empc-echo-error (cdr data))
+	(empc-echo-notify (cdr data))
       (empc-handle-closure-call closures data)))
   (empc-maybe-enter-idle-state))
 
@@ -277,7 +277,7 @@ Check the error code and process the different responses to the
 commands send as command_list."
   (let ((data (empc-response-parse-message msg)))
     (if (eq (car data) 'error)
-	(empc-echo-error (cdr data))
+	(empc-echo-notify (cddr data))
       (dolist (closure closures)
 	(empc-handle-closure-call closure (car data))
 	(setq data (cdr data)))))
