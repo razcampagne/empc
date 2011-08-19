@@ -73,6 +73,24 @@
   "Regexp that matches the valid status strings that MusicPD can
 return at the end of a request.")
 
+(defconst empc-playlist-map (make-keymap) "Keymap for `empc'")
+(define-key empc-playlist-map "q" 'empc-bury-buffers)
+(define-key empc-playlist-map "Q" 'empc-quit)
+(define-key empc-playlist-map "j" 'forward-line)
+(define-key empc-playlist-map "k" (lambda () (interactive) (forward-line -1)))
+(define-key empc-playlist-map "P" 'empc-toggle-pause)
+(define-key empc-playlist-map "s" 'empc-send-stop)
+(define-key empc-playlist-map "<" 'empc-send-previous)
+(define-key empc-playlist-map ">" 'empc-send-next)
+(define-key empc-playlist-map "r" 'empc-toggle-repeat)
+(define-key empc-playlist-map "R" 'empc-toggle-consume)
+(define-key empc-playlist-map "y" 'empc-toggle-single)
+(define-key empc-playlist-map "z" 'empc-toggle-random)
+(define-key empc-playlist-map "x" 'empc-toggle-crossfade)
+(define-key empc-playlist-map "o" 'empc-playlist-goto-current-song)
+(define-key empc-playlist-map [return] 'empc-send-play)
+(define-key empc-playlist-map "d" 'empc-send-delete)
+
 (defun empc-process-sentinel (proc event)
   "Process sentinel for `empc-process'."
   (let ((status (process-status proc)))
@@ -500,6 +518,30 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	     `(empc-send (concat ,command (if (= ,(if attr attr
 						    (intern command)) 1) " 0" " 1") "\n"))))))))
 
+(defmacro empc-define-command-with-pos (command &optional closure)
+  "Define a command that need a position either as a parameter or
+computed using point in buffer."
+  `(defun ,(intern (concat "empc-send-" command)) (&optional pos)
+     ,(concat "Send " command " to the server together with an ID
+     parameter computed using pos or cursor position.")
+     (interactive)
+     (empc-leave-idle-state)
+     (unless pos
+       (setq pos (count-lines (point-min) (point))))
+     (let ((id (elt empc-current-playlist pos)))
+       (empc-send (concat ,(concat command "id ") (number-to-string id) "\n") ,closure))))
+
+(defmacro empc-define-command-with-current-id (command &optional closure)
+  "Define a command that uses the current song as a parameter."
+  `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
+     ,(concat "Send " command " to the server with the ID of the currently playing song.")
+     (interactive)
+     (empc-leave-idle-state)
+     (empc-send (concat ,(concat command "id ")
+			(number-to-string (plist-get empc-current-status :songid))
+			(when arg (concat " " (if (stringp arg) arg (number-to-string arg)))) "\n")
+		,closure)))
+
 ;; Querying MPD's status
 (empc-define-simple-command "clearerror")
 (empc-define-simple-command "currentsong")
@@ -532,12 +574,14 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 			     ((eq state 'pause)
 			      (empc-send "pause 0"))
 			     (t (empc-send-play))))
-(empc-define-simple-command "play")
+(empc-define-command-with-pos "play")
 (empc-define-simple-command "previous")
+(empc-define-command-with-current-id "seek")
 (empc-define-simple-command "stop")
 
 ;; The current playlist
 (empc-define-simple-command "clear")
+(empc-define-command-with-pos "delete")
 (empc-define-simple-command "playlistinfo" 'empc-response-get-playlist)
 (empc-define-simple-command "shuffle")
 
