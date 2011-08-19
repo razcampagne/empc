@@ -332,7 +332,7 @@ commands send as command_list."
 ARG is nil."
   (interactive "p")
   (if arg
-      (add-to-list 'global-mode-string 'empc-mode-line-string)
+      (setq global-mode-string (append global-mode-string '(empc-mode-line-string)))
     (setq global-mode-string (remove 'empc-mode-line-string global-mode-string))))
 
 (defun empc-initialize ()
