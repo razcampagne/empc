@@ -30,6 +30,8 @@
 * DONE Display the playlist in a buffer
   CLOSED: [2011-08-18 Thu 19:55]
 
+* TODO Create a proper playlist-mode
+
 * TODO Allow tampering the playlist
 
 * TODO Display the music database in another buffer
