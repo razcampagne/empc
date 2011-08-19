@@ -240,13 +240,14 @@ According to what is in the diff, several actions can be performed:
       (unless (called-interactively-p)
 	(dolist (frame (frame-list))
 	  (with-selected-frame frame
-	    (when (get-buffer-window "*empc*")
-	      (with-selected-window (get-buffer-window "*empc*")
-		(goto-char (point-min))
-		(forward-line (plist-get empc-current-status :song))
-		(when (and (not buffer) empc-may-pulse)
-		  (pulse-momentary-highlight-one-line (point))))
-	      (setq buffer (get-buffer-window "*empc*"))))))
+	    (let ((bwindow (get-buffer-window "*empc*")))
+	      (when bwindow
+		(with-selected-window bwindow
+		  (goto-char (point-min))
+		  (forward-line (plist-get empc-current-status :song))
+		  (when (and (not buffer) empc-may-pulse)
+		    (pulse-momentary-highlight-one-line (point))))
+		(setq buffer bwindow))))))
       (unless buffer
 	(with-current-buffer "*empc*"
 	  (goto-char (point-min))
@@ -371,7 +372,13 @@ Send the password or retrieve available commands."
     (setq empc-queue (tq-create empc-process))
     (empc-initialize)))
 
-(defun empc-close-connection ()
+(defun empc-bury-buffers ()
+  "Bury all empc related buffers."
+  (interactive)
+  (while (member major-mode '(empc-playlist-mode))
+    (bury-buffer)))
+
+(defun empc-quit ()
   "Close connection between empc and mpd."
   (interactive)
   (when (and empc-process
@@ -392,6 +399,12 @@ Send the password or retrieve available commands."
 	empc-current-status nil
 	empc-current-playlist-songs nil
 	empc-current-playlist nil))
+
+(defun empc ()
+  "Emacs MPC (not really the most original name, but oh well…)."
+  (interactive)
+  (empc-ensure-connected)
+  (empc-switch-to-playlist))
 
 (defun empc-maybe-enter-idle-state ()
   "If not already in idle state and there is no other commands pending,
@@ -439,8 +452,9 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 
 (defun empc-playlist-mode ()
   "empc playlist mode."
+  (use-local-map empc-playlist-map)
   (setq major-mode 'empc-playlist-mode)
-  (setq mode-name "empc-playlist")
+  (setq mode-name "Empc-Playlist")
   (setq buffer-read-only t))
 
 (defun empc-switch-to-playlist ()
@@ -464,9 +478,8 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      ,(concat "Send " command " to the server.")
      (interactive)
      (empc-leave-idle-state)
-     (if arg
-	 (empc-send (concat ,(concat command " ") arg "\n") ,closure)
-       (empc-send (concat ,command "\n") ,closure))))
+     (empc-send (concat ,command (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))) "\n")
+		,closure)))
 
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
   "Define a command that toggle a state."
