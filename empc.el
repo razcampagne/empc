@@ -64,6 +64,10 @@
 (defvar empc-current-playlist nil)
 (defvar empc-current-playlist-songs nil)
 (defvar empc-mode-line-string "")
+(defvar empc-may-pulse nil)
+(when (require 'pulse nil t)
+  (setq empc-may-pulse t))
+
 (defconst empc-response-regexp
   "^\\(OK\\( MPD \\)?\\|ACK \\[\\([0-9]+\\)@[0-9]+\\] \\(.+\\)\\)\n+\\'"
   "Regexp that matches the valid status strings that MusicPD can
@@ -179,7 +183,8 @@ According to what is in the diff, several actions can be performed:
     (when (plist-get status-diff :songid)
       (setq notify '(lambda () (when empc-current-playlist-songs
 				 (empc-mode-line-song (gethash (plist-get status-diff :songid)
-							  empc-current-playlist-songs))))))
+							  empc-current-playlist-songs)))))
+      (empc-playlist-goto-current-song))
     (when (plist-get status-diff :state)
       (if (eq (plist-get status-diff :state) 'play)
 	  (progn
@@ -198,8 +203,7 @@ According to what is in the diff, several actions can be performed:
 							 (empc-status-on/off-stringify empc-current-status :consume)
 							 (empc-status-on/off-stringify empc-current-status :xfade))))))
     (when notify
-      (funcall notify))
-    (empc-playlist-goto-current-song)))
+      (funcall notify))))
 
 (defun empc-parse-status-attr (attr value)
   "Parse a single attribute from status."
@@ -230,19 +234,25 @@ According to what is in the diff, several actions can be performed:
 
 (defun empc-playlist-goto-current-song ()
   "Put point at currently playing song."
+  (interactive)
   (when (get-buffer "*empc*")
-  (let ((buffer nil))
-    (dolist (frame (frame-list))
-      (with-selected-frame frame
-	(when (get-buffer-window "*empc*")
-	  (setq buffer (get-buffer-window "*empc*"))
-	  (with-selected-window buffer
-	    (goto-char (point-min))
-	    (forward-line (plist-get empc-current-status :song))))))
-    (unless buffer
-      (with-current-buffer "*empc*"
-	(goto-char (point-min))
-	(forward-line (plist-get empc-current-status :song)))))))
+    (let ((buffer nil))
+      (unless (called-interactively-p)
+	(dolist (frame (frame-list))
+	  (with-selected-frame frame
+	    (when (get-buffer-window "*empc*")
+	      (with-selected-window (get-buffer-window "*empc*")
+		(goto-char (point-min))
+		(forward-line (plist-get empc-current-status :song))
+		(when (and (not buffer) empc-may-pulse)
+		  (pulse-momentary-highlight-one-line (point))))
+	      (setq buffer (get-buffer-window "*empc*"))))))
+      (unless buffer
+	(with-current-buffer "*empc*"
+	  (goto-char (point-min))
+	  (forward-line (plist-get empc-current-status :song))
+	  (when (and (called-interactively-p) empc-may-pulse)
+	    (pulse-momentary-highlight-one-line (point))))))))
 
 (defun empc-populate-playlist-buffer ()
   "Write playlist into the *empc* buffer."
