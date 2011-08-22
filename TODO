@@ -30,7 +30,15 @@
 * DONE Display the playlist in a buffer
   CLOSED: [2011-08-18 Thu 19:55]
 
+* TODO Rewrite a tq.el like
+  Need more flexibility and need to be able to play with the current buffer even in background
+  Sync transfert when required
+
 * TODO Create a proper playlist-mode
+  Need to keep data shown in buffers separated from data given by the server to
+  be able to prevent inconsistencies in the user interface
+
+* TODO Better notification system
 
 * TODO Allow tampering the playlist
 
