@@ -186,7 +186,8 @@ SERVICE is the name of the service desired, or an integer specifying
 
 (defun empc-process-sentinel (proc event)
   "Process sentinel for `empc-process'."
-  (let ((status (process-status proc)))
+  (let ((debug-on-error t)
+	(status (process-status proc)))
     (cond ((eq status 'closed)
 	   (when empc-verbose
 	     (message "empc: connection closed"))))))
@@ -235,14 +236,15 @@ SERVICE is the name of the service desired, or an integer specifying
 	(empc-queue-pop object))
       (empc-process-buffer object))))
 
-(defun empc-stream-process-sentinel (object event)
+(defun empc-stream-process-sentinel (proc event)
   "Process sentinel for `empc-stream-process'."
-  (let ((process (empc-process object)))
+  (let ((debug-on-error t)
+	(process (empc-process empc-object)))
     (when (and (eq (process-status proc) 'exit)
 	       process
 	       (processp process)
 	       (eq (process-status process) 'open)
-	       (eq (empc-status-get object :state) 'play))
+	       (eq (empc-status-get empc-object :state) 'play))
       (empc-toggle-pause 1)))
   (setq empc-stream-process nil))
 
@@ -262,14 +264,13 @@ SERVICE is the name of the service desired, or an integer specifying
 (defun empc-echo-song (&optional song)
   "Notify SONG in the echo area."
   (interactive)
-  (let ((object empc-object))
-    (unless song
-      (setq song (empc-current-song object)))
-    (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
-			      "/" (int-to-string (empc-status-get  object :playlistlength)) "] "
-			      (if (and (plist-get song :artist) (plist-get song :title))
-				  (concat (plist-get song :artist) " - " (plist-get song :title))
-				(plist-get song :file))))))
+  (unless song
+    (setq song (empc-current-song empc-object)))
+  (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
+			    "/" (int-to-string (empc-status-get empc-object :playlistlength)) "] "
+			    (if (and (plist-get song :artist) (plist-get song :title))
+				(concat (plist-get song :artist) " - " (plist-get song :title))
+			      (plist-get song :file)))))
 
 (defun empc-mode-line-notify (msg)
   "Change the string to write in the mode-line and force-update it."
@@ -278,14 +279,13 @@ SERVICE is the name of the service desired, or an integer specifying
 
 (defun empc-mode-line-song (&optional song)
   "Notify SONG in the mode-line."
-  (let ((object empc-object))
-    (unless song
-      (setq song (empc-current-song object)))
-    (empc-mode-line-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
-				   "/" (int-to-string (empc-status-get object :playlistlength)) "] "
-				   (if (and (plist-get song :artist) (plist-get song :title))
-				       (concat (plist-get song :artist) " - " (plist-get song :title))
-				     (plist-get song :file))))))
+  (unless song
+    (setq song (empc-current-song empc-object)))
+  (empc-mode-line-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
+				 "/" (int-to-string (empc-status-get empc-object :playlistlength)) "] "
+				 (if (and (plist-get song :artist) (plist-get song :title))
+				     (concat (plist-get song :artist) " - " (plist-get song :title))
+				   (plist-get song :file)))))
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
@@ -322,11 +322,10 @@ form '('error (error-code . error-message))."
 
 (defun empc-response-get-commands (data)
   "Parse DATA to get the available commands."
-  (let ((object empc-object)
-	(commands))
+  (let ((commands))
     (dolist (cell data)
       (setq commands (cons (cdr cell) commands)))
-    (empc-commands-set object commands)))
+    (empc-commands-set empc-object commands)))
 
 (defun empc-status-on/off-stringify (status key)
   "Return `on' or `off' if KEY is active or inactive in STATUS."
@@ -338,31 +337,30 @@ form '('error (error-code . error-message))."
 According to what is in the diff, several actions can be performed:
 	if :state or :songid is changed, report it to the user,
 	if :state is set to 'play, start the streaming process."
-  (let ((object empc-object)
-	(status-diff (empc-diff-status data))
+  (let ((status-diff (empc-diff-status data))
 	(notify nil))
     (when (plist-get status-diff :songid)
-      (setq notify '(lambda () (when (empc-playlist-songs object)
+      (setq notify '(lambda () (when (empc-playlist-songs empc-object)
 				 (empc-mode-line-song (gethash (plist-get status-diff :songid)
-							  (empc-playlist-songs object))))))
+							  (empc-playlist-songs empc-object))))))
       (empc-playlist-goto-current-song))
     (when (plist-get status-diff :state)
       (if (eq (plist-get status-diff :state) 'play)
 	  (progn
 	    (unless notify
-	      (setq notify '(lambda () (when (empc-playlist-songs object)
+	      (setq notify '(lambda () (when (empc-playlist-songs empc-object)
 					 (empc-mode-line-song)))))
-	    (empc-stream-start object))
+	    (empc-stream-start))
 	(setq notify '(lambda () (empc-mode-line-notify (symbol-name (plist-get status-diff :state)))))))
     (when (or (plist-member status-diff :repeat) (plist-member status-diff :random)
 	      (plist-member status-diff :single) (plist-member status-diff :consume)
 	      (plist-member status-diff :xfade))
       (setq notify '(lambda () (empc-echo-notify (format "repeat: %s, random: %s, single: %s, consume: %s, crossfade: %s"
-							 (empc-status-on/off-stringify (empc-status object) :repeat)
-							 (empc-status-on/off-stringify (empc-status object) :random)
-							 (empc-status-on/off-stringify (empc-status object) :single)
-							 (empc-status-on/off-stringify (empc-status object) :consume)
-							 (empc-status-on/off-stringify (empc-status object) :xfade))))))
+							 (empc-status-on/off-stringify (empc-status empc-object) :repeat)
+							 (empc-status-on/off-stringify (empc-status empc-object) :random)
+							 (empc-status-on/off-stringify (empc-status empc-object) :single)
+							 (empc-status-on/off-stringify (empc-status empc-object) :consume)
+							 (empc-status-on/off-stringify (empc-status empc-object) :xfade))))))
     (when notify
       (funcall notify))))
 
@@ -383,65 +381,61 @@ According to what is in the diff, several actions can be performed:
 
 (defun empc-diff-status (data)
   "Get the diff from `empc-current-status' and server response."
-  (let ((object empc-object)
-	(status-diff nil)
+  (let ((status-diff nil)
 	(attributes '(:volume :repeat :random :single :consume :playlist :playlistlength :state
 			      :song :songid :nextsong :nextsongid :time :elapsed :bitrate :xfade
 			      :mixrampdb :mixrampdelay :audio :updating_db :error)))
     (dolist (attr attributes status-diff)
       (let ((value (empc-parse-status-attr attr (cdr (assoc (substring (symbol-name attr) 1) data)))))
-	(unless (equal (empc-status-get object attr) value)
+	(unless (equal (empc-status-get empc-object attr) value)
 	  (setq status-diff (plist-put status-diff attr value))
-	  (empc-status-put object attr value))))))
+	  (empc-status-put empc-object attr value))))))
 
 (defun empc-playlist-goto-current-song ()
   "Put point at currently playing song."
   (interactive)
-  (let ((object empc-object))
-    (when (get-buffer "*empc*")
-      (let ((buffer nil))
-	(unless (called-interactively-p)
-	  (dolist (frame (frame-list))
-	    (with-selected-frame frame
-	      (let ((bwindow (get-buffer-window "*empc*")))
-		(when bwindow
-		  (with-selected-window bwindow
-		    (goto-char (point-min))
-		    (forward-line (empc-status-get object :song))
-		    (when (and (not buffer) empc-may-pulse)
-		      (pulse-momentary-highlight-one-line (point))))
-		  (setq buffer bwindow))))))
-	(unless buffer
-	  (with-current-buffer "*empc*"
-	    (goto-char (point-min))
-	    (forward-line (empc-status-get object :song))
-	    (when (and (called-interactively-p) empc-may-pulse)
-	      (pulse-momentary-highlight-one-line (point)))))))))
+  (when (get-buffer "*empc*")
+    (let ((buffer nil))
+      (unless (called-interactively-p)
+	(dolist (frame (frame-list))
+	  (with-selected-frame frame
+	    (let ((bwindow (get-buffer-window "*empc*")))
+	      (when bwindow
+		(with-selected-window bwindow
+		  (goto-char (point-min))
+		  (forward-line (empc-status-get empc-object :song))
+		  (when (and (not buffer) empc-may-pulse)
+		    (pulse-momentary-highlight-one-line (point))))
+		(setq buffer bwindow))))))
+      (unless buffer
+	(with-current-buffer "*empc*"
+	  (goto-char (point-min))
+	  (forward-line (empc-status-get empc-object :song))
+	  (when (and (called-interactively-p) empc-may-pulse)
+	    (pulse-momentary-highlight-one-line (point))))))))
 
 (defun empc-populate-playlist-buffer ()
   "Write playlist into the *empc* buffer."
-  (let ((object empc-object))
-    (save-window-excursion
-      (empc-switch-to-playlist)
-      (let ((buffer-read-only nil))
-	(erase-buffer)
-	(when (empc-playlist-songs object)
-	  (dotimes (pos (length (empc-playlist object)))
-	    (let ((song (empc-song object pos)))
-	      (insert (if (and (plist-member song :artist) (plist-member song :title))
-			  (concat (plist-get song :artist) " - " (plist-get song :title))
-			(plist-get song :file)) "\n"))))))
-    (empc-playlist-goto-current-song)))
+  (save-window-excursion
+    (empc-switch-to-playlist)
+    (let ((buffer-read-only nil))
+      (erase-buffer)
+      (when (empc-playlist-songs empc-object)
+	(dotimes (pos (length (empc-playlist empc-object)))
+	  (let ((song (empc-song empc-object pos)))
+	    (insert (if (and (plist-member song :artist) (plist-member song :title))
+			(concat (plist-get song :artist) " - " (plist-get song :title))
+		      (plist-get song :file)) "\n"))))))
+  (empc-playlist-goto-current-song))
 
 (defun empc-response-get-playlist (data)
   "Parse information regarding songs in current playlist and arrange it into a
 hash table `empc-current-playlist-songs'sorted by songid.
 songs order is kept into an avector `empc-current-playlist'."
-  (let* ((object empc-object)
-	 (playlist-songs (make-hash-table :rehash-threshold 1.0 :size (empc-status-get object :playlistlength)))
-	(playlist (make-vector (empc-status-get object :playlistlength) nil))
-	(song nil)
-	(index (- (length playlist) 1)))
+  (let* ((playlist-songs (make-hash-table :rehash-threshold 1.0 :size (empc-status-get empc-object :playlistlength)))
+	 (playlist (make-vector (empc-status-get empc-object :playlistlength) nil))
+	 (song nil)
+	 (index (- (length playlist) 1)))
     (dolist (cell data)
       (let ((field (intern (concat ":" (car cell)))))
 	(when (and (eq field :id) song)
@@ -458,8 +452,8 @@ songs order is kept into an avector `empc-current-playlist'."
     (when (and song (>= index 0))
       (puthash (plist-get song :id) song playlist-songs)
       (aset playlist index (plist-get song :id)))
-    (empc-playlist-set object playlist)
-    (empc-playlist-songs-set object playlist-songs))
+    (empc-playlist-set empc-object playlist)
+    (empc-playlist-songs-set empc-object playlist-songs))
   (empc-populate-playlist-buffer))
 
 (defun empc-response-idle (data)
@@ -513,11 +507,11 @@ ARG is nil."
       (setq global-mode-string (append global-mode-string '(empc-mode-line-string)))
     (setq global-mode-string (remove 'empc-mode-line-string global-mode-string))))
 
-(defun empc-initialize (object)
+(defun empc-initialize ()
   "Initialize the client after connection.
 Send the password or retrieve available commands."
-  (empc-send-list object (when empc-server-password
-			   `(,(concat "password " empc-server-password)))
+  (empc-send-list (when empc-server-password
+		    `(,(concat "password " empc-server-password)))
 		  '("commands" . empc-response-get-commands)
 		  '("status" . empc-response-get-status)
 		  '("playlistinfo" . empc-response-get-playlist))
@@ -532,7 +526,7 @@ Send the password or retrieve available commands."
 		 (processp process)
 		 (eq (process-status process) 'open))
       (setq empc-object (empc-create "empc" empc-buffer-name empc-server-host empc-server-port))
-      (empc-initialize empc-object))))
+      (empc-initialize))))
 
 (defun empc-bury-buffers ()
   "Bury all empc related buffers."
@@ -579,17 +573,17 @@ enter idle state to accept notifications from the server."
     (process-send-string (empc-process empc-object) "noidle\n")
     (setq empc-idle-state nil)))
 
-(defun empc-send (object command &optional closure handler)
+(defun empc-send (command &optional closure handler)
   "Send COMMAND to the mpd server.
 CLOSURE will be called on the parsed response."
   (empc-ensure-connected)
   (empc-leave-idle-state)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
-  (empc-queue-push object command closure
+  (empc-queue-push empc-object command closure
 		   (if handler handler 'empc-handle-response)))
 
-(defun empc-send-list (object &rest commands)
+(defun empc-send-list (&rest commands)
   "Send COMMANDS to the mpd server using command_list.
 COMMANDS is a list of cons of the form: '(COMMAND . CLOSURE),
 where CLOSURE (may be a list of functions) will be called on the parsed response."
@@ -599,17 +593,16 @@ where CLOSURE (may be a list of functions) will be called on the parsed response
 		     (setq command (concat command (car cell) "\n"))
 		     (setq closures (cons (cdr cell) closures))))
     (setq command (concat command "command_list_end\n"))
-    (empc-send object command closures 'empc-handle-response-list)))
+    (empc-send command closures 'empc-handle-response-list)))
 
-(defun empc-stream-start (object)
+(defun empc-stream-start ()
   "Start the stream process if the command to mpd returned successfully.
 If the stream process is killed for whatever the reason, pause mpd if possible."
-  (let ((stream-process (empc-stream object)))
+  (let ((stream-process (empc-stream empc-object)))
     (when (and (not stream-process)
 	       empc-stream-url empc-stream-program)
       (setq stream-process (start-process "empc-stream" nil empc-stream-program empc-stream-url))
-      (set-process-sentinel stream-process `(lambda (proc event)
-					     (empc-stream-process-sentinel ',object event)))
+      (set-process-sentinel stream-process 'empc-stream-process-sentinel)
       (setq empc-stream-process stream-process))))
 
 (defun empc-playlist-mode ()
@@ -628,21 +621,20 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
     (switch-to-buffer "*empc*")))
    (empc-playlist-mode))
 
-(defmacro with-updated-status (object &rest body)
+(defmacro with-updated-status (&rest body)
   "Update the status and execute the forms in BODY."
   `(if (empc-status empc-object)
        ,@body
-     (empc-send object "status\n" '(empc-response-get-status (lambda (data) ,@body)))))
+     (empc-send "status\n" '(empc-response-get-status (lambda (data) ,@body)))))
 
 (defmacro empc-define-simple-command (command &optional closure)
   "Define a simple command that doesn't need an argument."
   `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
      ,(concat "Send " command " to the server.")
      (interactive)
-     (let ((debug-on-error t)
-	   (object empc-object))
+     (let ((debug-on-error t))
        (empc-leave-idle-state)
-       (empc-send object (concat ,command (when arg (concat " " (if (stringp arg)
+       (empc-send (concat ,command (when arg (concat " " (if (stringp arg)
 									 arg (number-to-string arg)))) "\n")
 		  ,closure))))
 
@@ -651,20 +643,19 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   `(defun ,(intern (concat "empc-toggle-" command)) (&optional state)
      ,(concat "Toggle " command ".")
      (interactive)
-     (let ((debug-on-error t)
-	   (object empc-object))
+     (let ((debug-on-error t))
        (empc-leave-idle-state)
        (if state
-	   (empc-send object (concat ,(concat command " ") (int-to-string state) "\n"))
-	 (with-updated-status object
+	   (empc-send (concat ,(concat command " ") (int-to-string state) "\n"))
+	 (with-updated-status
 	  (let ((,(if attr attr
 		    (intern command))
-		 (empc-status-get object (quote ,(intern (concat ":" (if state-name
+		 (empc-status-get empc-object (quote ,(intern (concat ":" (if state-name
 									 state-name
 								       command)))))))
 	    ,(if body
 		 `(progn ,@body)
-	       `(empc-send object (concat ,command (if (= ,(if attr attr
+	       `(empc-send (concat ,command (if (= ,(if attr attr
 							     (intern command)) 1) " 0" " 1") "\n")))))))))
 
 (defmacro empc-define-command-with-pos (command &optional closure)
@@ -674,25 +665,23 @@ computed using point in buffer."
      ,(concat "Send " command " to the server together with an ID
      parameter computed using pos or cursor position.")
      (interactive)
-     (let ((debug-on-error t)
-	   (object empc-object))
+     (let ((debug-on-error t))
        (empc-leave-idle-state)
        (unless pos
 	 (setq pos (count-lines (point-min) (point))))
-       (let ((id (elt (empc-playlist object) pos)))
-	 (empc-send object (concat ,(concat command "id ") (number-to-string id) "\n") ,closure)))))
+       (let ((id (elt (empc-playlist empc-object) pos)))
+	 (empc-send (concat ,(concat command "id ") (number-to-string id) "\n") ,closure)))))
 
 (defmacro empc-define-command-with-current-id (command &optional closure)
   "Define a command that uses the current song as a parameter."
   `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
      ,(concat "Send " command " to the server with the ID of the currently playing song.")
      (interactive)
-     (let ((debug-on-error t)
-	   (object empc-object))
+     (let ((debug-on-error t))
        (empc-leave-idle-state)
-       (empc-send object (concat ,(concat command "id ")
-				 (number-to-string (empc-status-get object :songid))
-				 (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))) "\n")
+       (empc-send (concat ,(concat command "id ")
+			  (number-to-string (empc-status-get empc-object :songid))
+			  (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))) "\n")
 		  ,closure))))
 
 ;; Querying MPD's status
