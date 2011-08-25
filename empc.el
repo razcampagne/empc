@@ -102,21 +102,25 @@ playlist is a vector of song ids, keeping the order of the songs
 (defun empc-queue-head-closure (object) (car (cdaaar object)))
 (defun empc-queue-head-fn (object) (cdr (cdaaar object)))
 (defun empc-queue-push (object command closure fn)
-  "Enqueue '(COMMAND . (CLOSURE . FN)) to the queue of OBJECT."
-  (unless (or (empc-queue object)
-	       (not command))
-    (process-send-string (empc-process object) command)
-    (setq command nil))
+  "Enqueue '(COMMAND . (CLOSURE . FN)) to the queue of OBJECT.
+Leave the idle state beforehand if necessary."
+  (if (empc-queue object)
+      (when (string= (empc-queue-head-command object) "idle\n")
+	(process-send-string (empc-process object) "noidle\n"))
+    (when command
+      (process-send-string (empc-process object) command)))
   (setcar (car object)
 	  (nconc (empc-queue object)
 		 (list (cons command (cons closure fn))))))
 
 (defun empc-queue-pop (object)
-  "Pop the head of the queue. Return the new queue."
+  "Pop the head of the queue then send the next command.
+If there is no command left to send, put the client in idle state."
   (setcar (car object) (cdr (empc-queue object)))
-  (when (and (empc-queue object)
-	     (empc-queue-head-command object))
-    (process-send-string (empc-process object) (empc-queue-head-command object))))
+  (if (empc-queue object)
+      (when (empc-queue-head-command object)
+	(process-send-string (empc-process object) (empc-queue-head-command object)))
+    (empc-queue-push object "idle\n" 'empc-response-idle 'empc-handle-response)))
 
 (defun empc-commands-set (object commands) (setcdr (cdar object) commands))
 (defun empc-status-put (object attr value) (setcar (cdr object) (plist-put (empc-status object) attr value)))
@@ -158,7 +162,6 @@ SERVICE is the name of the service desired, or an integer specifying
     (delete-process (empc-process object))
     (kill-buffer buffer)))
 
-(defvar empc-idle-state nil)
 (defvar empc-last-crossfade nil)
 (defvar empc-mode-line-string "")
 (defvar empc-stream-process nil)
@@ -458,7 +461,6 @@ songs order is kept into an avector `empc-current-playlist'."
 
 (defun empc-response-idle (data)
   "React from idle interruption."
-  (setq empc-idle-state nil)
   (dolist (cell data)
     (when (string= (car cell) "changed")
       (let ((changed (cdr cell)))
@@ -484,8 +486,7 @@ Check the error code and process it using CLOSURES."
   (let ((data (empc-response-parse-message msg)))
     (if (eq (car data) 'error)
 	(empc-echo-notify (cdr data))
-      (empc-handle-closure-call closures data)))
-  (empc-maybe-enter-idle-state))
+      (empc-handle-closure-call closures data))))
 
 (defun empc-handle-response-list (closures msg)
   "Retrieve the responses from the server.
@@ -496,8 +497,7 @@ commands send as command_list."
 	(empc-echo-notify (cddr data))
       (dolist (closure closures)
 	(empc-handle-closure-call closure (car data))
-	(setq data (cdr data)))))
-  (empc-maybe-enter-idle-state))
+	(setq data (cdr data))))))
 
 (defun empc-mode-line (arg)
   "Add empc info to the mode-line if ARG is non-nil, remove if
@@ -516,8 +516,7 @@ Send the password or retrieve available commands."
 		  '("status" . empc-response-get-status)
 		  '("playlistinfo" . empc-response-get-playlist))
   (empc-mode-line t)
-  (setq empc-idle-state nil
-	empc-last-crossfade nil))
+  (setq empc-last-crossfade nil))
 
 (defun empc-ensure-connected ()
   "Make sure empc is connected and ready to talk to mpd."
@@ -541,7 +540,6 @@ Send the password or retrieve available commands."
     (when (and process
 	       (processp process)
 	       (eq (process-status process) 'open))
-      (empc-leave-idle-state)
       (empc-send-close)))
   (when empc-object
     (empc-close empc-object))
@@ -549,7 +547,6 @@ Send the password or retrieve available commands."
   (when (get-buffer "*empc*")
     (kill-buffer "*empc*"))
   (setq empc-object nil
-	empc-idle-state nil
 	empc-last-crossfade nil))
 
 (defun empc ()
@@ -559,25 +556,10 @@ Send the password or retrieve available commands."
     (empc-ensure-connected)
     (empc-switch-to-playlist)))
 
-(defun empc-maybe-enter-idle-state ()
-  "If not already in idle state and there is no other commands pending,
-enter idle state to accept notifications from the server."
-  (unless (or empc-idle-state
-	      (cdr (empc-queue empc-object)))
-    (empc-send-idle)
-    (setq empc-idle-state t)))
-
-(defun empc-leave-idle-state ()
-  "If in idle state, regain control."
-  (when empc-idle-state
-    (process-send-string (empc-process empc-object) "noidle\n")
-    (setq empc-idle-state nil)))
-
 (defun empc-send (command &optional closure handler)
   "Send COMMAND to the mpd server.
 CLOSURE will be called on the parsed response."
   (empc-ensure-connected)
-  (empc-leave-idle-state)
   (unless (string= (substring command -1) "\n")
     (setq command (concat command "\n")))
   (empc-queue-push empc-object command closure
@@ -633,7 +615,6 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      ,(concat "Send " command " to the server.")
      (interactive)
      (let ((debug-on-error t))
-       (empc-leave-idle-state)
        (empc-send (concat ,command (when arg (concat " " (if (stringp arg)
 									 arg (number-to-string arg)))) "\n")
 		  ,closure))))
@@ -644,7 +625,6 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      ,(concat "Toggle " command ".")
      (interactive)
      (let ((debug-on-error t))
-       (empc-leave-idle-state)
        (if state
 	   (empc-send (concat ,(concat command " ") (int-to-string state) "\n"))
 	 (with-updated-status
@@ -666,7 +646,6 @@ computed using point in buffer."
      parameter computed using pos or cursor position.")
      (interactive)
      (let ((debug-on-error t))
-       (empc-leave-idle-state)
        (unless pos
 	 (setq pos (count-lines (point-min) (point))))
        (let ((id (elt (empc-playlist empc-object) pos)))
@@ -678,7 +657,6 @@ computed using point in buffer."
      ,(concat "Send " command " to the server with the ID of the currently playing song.")
      (interactive)
      (let ((debug-on-error t))
-       (empc-leave-idle-state)
        (empc-send (concat ,(concat command "id ")
 			  (number-to-string (empc-status-get empc-object :songid))
 			  (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))) "\n")
@@ -687,7 +665,6 @@ computed using point in buffer."
 ;; Querying MPD's status
 (empc-define-simple-command "clearerror")
 (empc-define-simple-command "currentsong")
-(empc-define-simple-command "idle" 'empc-response-idle)
 (empc-define-simple-command "status" 'empc-response-get-status)
 (empc-define-simple-command "stats")
 
