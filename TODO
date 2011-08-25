@@ -34,9 +34,6 @@
   CLOSED: [2011-08-24 Wed 18:21]
   Need more flexibility and need to be able to play with the current buffer even in background
 
-* TODO clean the code
-  Need to decide if every function can access the global variable
-
 * TODO Create a proper playlist-mode
   - Use format-like string to let the user change the format of a song appearing
     in the playlist. (see [[file:~/.myconfigs/.emacs.d/el-get/nognus/lisp/gnus-spec.el::(defun%20gnus-parse-simple-format%20(format%20spec-alist%20&optional%20insert)][gnus-parse-simple-format]] and [[file:~/.myconfigs/.emacs.d/el-get/nognus/lisp/gnus-sum.el::(defvar%20gnus-summary-line-format-alist][gnus-summary-line-format-alist]])

@@ -130,7 +130,7 @@ If there is no command left to send, put the client in idle state."
 (defun empc-song (object pos) (gethash (elt (empc-playlist object) pos) (empc-playlist-songs object)))
 (defun empc-current-song (object) (gethash (empc-status-get object :songid) (empc-playlist-songs object)))
 
-(defun empc-create (name buffer host port)
+(defun empc-create (name buffer host service)
   "Create and return a new object for empc. The parameters are as follows:
 
 NAME is the name for the process.  It is modified if necessary to
@@ -142,7 +142,7 @@ HOST is the name or IP address of the host to connect to.
 SERVICE is the name of the service desired, or an integer specifying
  a port number to connect to."
 
-  (let* ((process (open-network-stream name buffer host port))
+  (let* ((process (open-network-stream name buffer host service))
 	 (object `((nil ,process) nil nil))) ;; this weird form represents an empty object as described in empc-object
     (empc-queue-push object nil nil `(lambda (proc string)
 				      (message "Connection to %s established" ',host)))
@@ -195,11 +195,6 @@ SERVICE is the name of the service desired, or an integer specifying
     (cond ((eq status 'closed)
 	   (when empc-verbose
 	     (message "empc: connection closed"))))))
-
-(defun empc-enqueue (object command closure fn)
-  "Add COMMAND to the end of the queue before sending it to the server."
-  (empc-queue-push object command closure fn)
-  (process-send-string (empc-process object) command))
 
 (defun empc-process-filter (object string)
   "Append STRING to the process buffer then process the data."
