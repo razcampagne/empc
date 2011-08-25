@@ -186,6 +186,7 @@ SERVICE is the name of the service desired, or an integer specifying
 (define-key empc-playlist-map "o" 'empc-playlist-goto-current-song)
 (define-key empc-playlist-map [return] 'empc-send-play)
 (define-key empc-playlist-map "d" 'empc-send-delete)
+(define-key empc-playlist-map "c" 'empc-send-clear)
 
 (defun empc-process-sentinel (proc event)
   "Process sentinel for `empc-process'."
