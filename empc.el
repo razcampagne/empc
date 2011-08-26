@@ -180,7 +180,7 @@ You can use the following already defined variables:
 				    (concat " [" pos "/" playlistlength "] " (if (and artist title)
 										(concat artist " - " title)
 									      file))
-				  state))
+				  (concat " " state)))
   "Format used to display empc state in mode-line.
 The construction is the same as `mode-line-format'.
 You can use the following already defined variables:
