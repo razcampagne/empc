@@ -106,12 +106,18 @@ playlist is a vector of song ids, keeping the order of the songs
 Leave the idle state beforehand if necessary."
   (if (empc-queue object)
       (when (string= (empc-queue-head-command object) "idle\n")
+	(setcar (caaar object) "noidle\n")
 	(process-send-string (empc-process object) "noidle\n"))
     (when command
       (process-send-string (empc-process object) command)))
   (setcar (car object)
 	  (nconc (empc-queue object)
 		 (list (cons command (cons closure fn))))))
+
+(defun empc-queue-sync (object)
+  "Empty object's queue synchronously."
+  (while (and (not (string= (empc-queue-head-command object) "idle\n"))
+	      (accept-process-output (empc-process object) 10))))
 
 (defun empc-queue-pop (object)
   "Pop the head of the queue then send the next command.
@@ -611,6 +617,18 @@ CLOSURE will be called on the parsed response."
     (setq command (concat command "\n")))
   (empc-queue-push empc-object command closure
 		   (if handler handler 'empc-handle-response)))
+
+(defun empc-send-sync (command &optional closure handler)
+  "Send COMMAND synchronously. That means empc will push the
+  command to the queue before synchronously emptying it."
+  (empc-send command closure handler)
+  (empc-queue-sync empc-object))
+
+(defun empc-send-output (command)
+  "Send COMMAND synchronously and return the server response as string."
+  (let ((output))
+    (empc-send-sync command nil (lambda (closures msg) (setq output msg)))
+    output))
 
 (defun empc-send-list (&rest commands)
   "Send COMMANDS to the mpd server using command_list.
