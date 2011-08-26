@@ -162,6 +162,68 @@ SERVICE is the name of the service desired, or an integer specifying
     (delete-process (empc-process object))
     (kill-buffer buffer)))
 
+(defvar empc-song-format '(time "\t" (if (and artist title) (concat artist " - " title) file))
+  "Format used to express songs in playlist and browser.
+The construction is the same as `mode-line-format'.
+You can use the following already defined variables:
+
+  time, file, artist, title, album, year, track, full-track,
+  genre, composer, performer, disc, comment, pos, full-pos.")
+
+(defvar empc-mode-line-format '((if (string= state "play")
+				    (concat " [" pos "/" playlistlength "] " (if (and artist title)
+										(concat artist " - " title)
+									      file))
+				  state))
+  "Format used to display empc state in mode-line.
+The construction is the same as `mode-line-format'.
+You can use the following already defined variables:
+
+For songs:
+  time, file, artist, title, album, year, track, full-track,
+  genre, composer, performer, disc, comment, pos, full-pos.
+
+For status:
+  playlistlength, state.")
+
+(defun empc-time-to-string (time &optional stop)
+  "Format TIME to hh:mm:ss format."
+  (if (> time 3600)
+      (format "%d:%.2d:%.2d" (/ time 3600) (mod (/ time 60) 60) (mod time 60))
+    (format "%d:%.2d" (/ time 60) (mod time 60))))
+
+(defun empc-song-to-string (song)
+  "Return a string as per `empc-playlist-song-format' variable using SONG's attributes."
+  (let* ((time (empc-time-to-string (plist-get song :time)))
+	(file (plist-get song :file))
+	(artist (plist-get song :artist))
+	(title (plist-get song :title))
+	(album (plist-get song :album))
+	(date (number-to-string (plist-get song :date)))
+	(track (plist-get song :track))
+	(genre (plist-get song :genre))
+	(pos (number-to-string (plist-get song :pos)))
+	(string-format `(concat ,@empc-song-format)))
+    (eval string-format)))
+
+(defun empc-mode-line-to-string ()
+  "Return a string as per `empc-mode-line-format'."
+  (let* ((song (empc-current-song empc-object))
+	 (status (empc-status empc-object))
+	 (time (empc-time-to-string (plist-get song :time)))
+	 (file (plist-get song :file))
+	 (artist (plist-get song :artist))
+	 (title (plist-get song :title))
+	 (album (plist-get song :album))
+	 (date (number-to-string (plist-get song :date)))
+	 (track (plist-get song :track))
+	 (genre (plist-get song :genre))
+	 (pos (number-to-string (1+ (plist-get song :pos))))
+	 (playlistlength (number-to-string (plist-get status :playlistlength)))
+	 (state (symbol-name (plist-get status :state)))
+	 (string-format `(concat ,@empc-mode-line-format)))
+    (eval string-format)))
+
 (defvar empc-last-crossfade nil)
 (defvar empc-mode-line-string "")
 (defvar empc-stream-process nil)
@@ -271,20 +333,10 @@ SERVICE is the name of the service desired, or an integer specifying
 				(concat (plist-get song :artist) " - " (plist-get song :title))
 			      (plist-get song :file)))))
 
-(defun empc-mode-line-notify (msg)
+(defun empc-mode-line-update ()
   "Change the string to write in the mode-line and force-update it."
-  (setq empc-mode-line-string (concat " " msg))
+  (setq empc-mode-line-string (empc-mode-line-to-string))
   (force-mode-line-update))
-
-(defun empc-mode-line-song (&optional song)
-  "Notify SONG in the mode-line."
-  (unless song
-    (setq song (empc-current-song empc-object)))
-  (empc-mode-line-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
-				 "/" (int-to-string (empc-status-get empc-object :playlistlength)) "] "
-				 (if (and (plist-get song :artist) (plist-get song :title))
-				     (concat (plist-get song :artist) " - " (plist-get song :title))
-				   (plist-get song :file)))))
 
 (defun empc-response-parse-line (line)
   "Turn the given line into a cons cell.
@@ -340,17 +392,16 @@ According to what is in the diff, several actions can be performed:
 	(notify nil))
     (when (plist-get status-diff :songid)
       (setq notify '(lambda () (when (empc-playlist-songs empc-object)
-				 (empc-mode-line-song (gethash (plist-get status-diff :songid)
-							  (empc-playlist-songs empc-object))))))
+				 (empc-echo-song))))
       (empc-playlist-goto-current-song))
     (when (plist-get status-diff :state)
       (if (eq (plist-get status-diff :state) 'play)
 	  (progn
 	    (unless notify
 	      (setq notify '(lambda () (when (empc-playlist-songs empc-object)
-					 (empc-mode-line-song)))))
+					 (empc-echo-song)))))
 	    (empc-stream-start))
-	(setq notify '(lambda () (empc-mode-line-notify (symbol-name (plist-get status-diff :state)))))))
+	(setq notify '(lambda () (empc-echo-notify (symbol-name (plist-get status-diff :state)))))))
     (when (or (plist-member status-diff :repeat) (plist-member status-diff :random)
 	      (plist-member status-diff :single) (plist-member status-diff :consume)
 	      (plist-member status-diff :xfade))
@@ -360,6 +411,8 @@ According to what is in the diff, several actions can be performed:
 							 (empc-status-on/off-stringify (empc-status empc-object) :single)
 							 (empc-status-on/off-stringify (empc-status empc-object) :consume)
 							 (empc-status-on/off-stringify (empc-status empc-object) :xfade))))))
+    (when (empc-playlist-songs empc-object)
+      (empc-mode-line-update))
     (when notify
       (funcall notify))))
 
@@ -422,9 +475,7 @@ According to what is in the diff, several actions can be performed:
       (when (empc-playlist-songs empc-object)
 	(dotimes (pos (length (empc-playlist empc-object)))
 	  (let ((song (empc-song empc-object pos)))
-	    (insert (if (and (plist-member song :artist) (plist-member song :title))
-			(concat (plist-get song :artist) " - " (plist-get song :title))
-		      (plist-get song :file)) "\n"))))))
+	    (insert (empc-song-to-string song) "\n"))))))
   (empc-playlist-goto-current-song))
 
 (defun empc-response-get-playlist (data)
