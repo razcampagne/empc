@@ -34,6 +34,8 @@
   CLOSED: [2011-08-24 Wed 18:21]
   Need more flexibility and need to be able to play with the current buffer even in background
 
+* TODO Recreate the playlist using only the diff between the current version and the previous
+
 * TODO Create a proper playlist-mode
   - Use format-like string to let the user change the format of a song appearing
     in the playlist. (see [[file:~/.myconfigs/.emacs.d/el-get/nognus/lisp/gnus-spec.el::(defun%20gnus-parse-simple-format%20(format%20spec-alist%20&optional%20insert)][gnus-parse-simple-format]] and [[file:~/.myconfigs/.emacs.d/el-get/nognus/lisp/gnus-sum.el::(defvar%20gnus-summary-line-format-alist][gnus-summary-line-format-alist]])
@@ -56,8 +58,6 @@
 
 * TODO Let the user easily create its own multi commands using predefined keywords
   Create these keywords in the various macro definitions
-
-* TODO Recreate the playlist using only the diff between the current version and the previous
 
 * TODO Why do I get disconnected when updating the db?
 
