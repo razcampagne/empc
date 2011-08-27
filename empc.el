@@ -230,7 +230,7 @@ For status:
 
 (defun empc-mode-line-to-string ()
   "Return a string as per `empc-mode-line-format'."
-  (if song
+  (if (empc-current-song empc-object)
       (let* ((song (empc-current-song empc-object))
 	     (status (empc-status empc-object))
 	     (time (empc-time-to-string (plist-get song :time)))
