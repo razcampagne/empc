@@ -417,6 +417,15 @@ According to what is in the diff, several actions can be performed:
 							 (empc-status-on/off-stringify (empc-status empc-object) :single)
 							 (empc-status-on/off-stringify (empc-status empc-object) :consume)
 							 (empc-status-on/off-stringify (empc-status empc-object) :xfade))))))
+    (when (plist-member status-diff :playlist)
+      (if (and (empc-playlist-songs empc-object) (empc-status-get empc-object :playlist))
+	  (empc-send-plchangesposid (empc-status-get empc-object :playlist))
+	(empc-send-playlistinfo)))
+    (while status-diff
+      (let ((attr (car status-diff))
+	    (value (cadr status-diff)))
+	(setq status-diff (cddr status-diff))
+	(empc-status-put empc-object attr value)))
     (when (empc-playlist-songs empc-object)
       (empc-mode-line-update))
     (when notify
@@ -446,8 +455,7 @@ According to what is in the diff, several actions can be performed:
     (dolist (attr attributes status-diff)
       (let ((value (empc-parse-status-attr attr (cdr (assoc (substring (symbol-name attr) 1) data)))))
 	(unless (equal (empc-status-get empc-object attr) value)
-	  (setq status-diff (plist-put status-diff attr value))
-	  (empc-status-put empc-object attr value))))))
+	  (setq status-diff (plist-put status-diff attr value)))))))
 
 (defun empc-playlist-goto-current-song ()
   "Put point at currently playing song."
@@ -512,17 +520,47 @@ songs order is kept into an avector `empc-current-playlist'."
     (empc-playlist-songs-set empc-object playlist-songs))
   (empc-populate-playlist-buffer))
 
+(defun empc-response-parse-song (song)
+  "Parse a single song."
+  (let (song)
+    (dolist (cell data song)
+      (let ((field (intern (concat ":" (car cell)))))
+	(cond
+	 ((memq field '(:time :track :date :pos :id))
+	  (setq song (plist-put song field (string-to-number (cdr cell)))))
+	 (t (if (plist-get song field)
+		(setq song (plist-put song field (concat (plist-get song field) ", " (cdr cell))))
+	      (setq song (plist-put song field (cdr cell))))))))))
+
+(defun empc-response-get-plchangesposid (data)
+  "Parse information regarding changes in the playlist since the last version."
+  (let ((songs-to-fetch)
+	(new-pl (make-vector (empc-status-get empc-object :playlistlength) nil)))
+    (dotimes (i (min (length new-pl) (length (empc-playlist empc-object))))
+      (aset new-pl i (aref (empc-playlist empc-object) i)))
+    (empc-playlist-set empc-object new-pl)
+    (while data
+      (let ((id (string-to-number (cdar data)))
+	    (cpos (string-to-number (cdadr data))))
+	(setq data (cddr data))
+	(unless (gethash id (empc-playlist-songs empc-object))
+	  (setq songs-to-fetch (cons (cons (concat "playlistid " (number-to-string id)) `(lambda (data)
+										    (puthash ,id (empc-response-parse-song data)
+											     (empc-playlist-songs empc-object))))
+				     songs-to-fetch)))
+	(aset (empc-playlist empc-object) cpos id)))
+    (if songs-to-fetch
+	(empc-send-list songs-to-fetch)
+      (empc-populate-playlist-buffer))))
+
 (defun empc-response-idle (data)
   "React from idle interruption."
   (dolist (cell data)
     (when (string= (car cell) "changed")
       (let ((changed (cdr cell)))
 	(cond
-	 ((member changed '("player" "options"))
-	  (empc-send-status))
-	 ((string= changed "playlist")
-	  (empc-send-status)
-	  (empc-send-playlistinfo)))))))
+	 ((member changed '("player" "options" "playlist"))
+	  (empc-send-status)))))))
 
 (defun empc-handle-closure-call (closures data)
   "If CLOSURES is a list of function, call them in turn with DATA
@@ -563,11 +601,12 @@ ARG is nil."
 (defun empc-initialize ()
   "Initialize the client after connection.
 Send the password or retrieve available commands."
-  (empc-send-list (when empc-server-password
+  (empc-send-list `(,(when empc-server-password
 		    `(,(concat "password " empc-server-password)))
-		  '("commands" . empc-response-get-commands)
-		  '("status" . empc-response-get-status)
-		  '("playlistinfo" . empc-response-get-playlist))
+		    ("commands" . empc-response-get-commands)
+		    ("status" . empc-response-get-status))
+		  ;'("playlistinfo" . empc-response-get-playlist)
+		  )
   (empc-mode-line t)
   (setq empc-last-crossfade nil))
 
@@ -630,7 +669,7 @@ CLOSURE will be called on the parsed response."
     (empc-send-sync command nil (lambda (closures msg) (setq output msg)))
     output))
 
-(defun empc-send-list (&rest commands)
+(defun empc-send-list (commands)
   "Send COMMANDS to the mpd server using command_list.
 COMMANDS is a list of cons of the form: '(COMMAND . CLOSURE),
 where CLOSURE (may be a list of functions) will be called on the parsed response."
@@ -768,6 +807,7 @@ computed using point in buffer."
 (empc-define-simple-command "clear")
 (empc-define-command-with-pos "delete")
 (empc-define-simple-command "playlistinfo" 'empc-response-get-playlist)
+(empc-define-simple-command "plchangesposid" 'empc-response-get-plchangesposid)
 (empc-define-simple-command "shuffle")
 
 ;; Stored playlists
