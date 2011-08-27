@@ -104,12 +104,13 @@ playlist is a vector of song ids, keeping the order of the songs
 (defun empc-queue-push (object command closure fn)
   "Enqueue '(COMMAND . (CLOSURE . FN)) to the queue of OBJECT.
 Leave the idle state beforehand if necessary."
-  (if (empc-queue object)
-      (when (string= (empc-queue-head-command object) "idle\n")
-	(setcar (caaar object) "noidle\n")
-	(process-send-string (empc-process object) "noidle\n"))
-    (when command
-      (process-send-string (empc-process object) command)))
+  (when (empc-process object)
+    (if (empc-queue object)
+	(when (string= (empc-queue-head-command object) "idle\n")
+	  (setcar (caaar object) "noidle\n")
+	  (process-send-string (empc-process object) "noidle\n"))
+      (when command
+	(process-send-string (empc-process object) command))))
   (setcar (car object)
 	  (nconc (empc-queue object)
 		 (list (cons command (cons closure fn))))))
