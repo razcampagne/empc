@@ -124,9 +124,22 @@ Leave the idle state beforehand if necessary."
 If there is no command left to send, put the client in idle state."
   (setcar (car object) (cdr (empc-queue object)))
   (if (empc-queue object)
-      (when (empc-queue-head-command object)
-	(process-send-string (empc-process object) (empc-queue-head-command object)))
+      (progn
+	(when (> (length (empc-queue object)) 1)
+	  (empc-queue-merge object))
+	(when (empc-queue-head-command object)
+	  (process-send-string (empc-process object) (empc-queue-head-command object))))
     (empc-queue-push object "idle\n" 'empc-response-idle 'empc-handle-response)))
+
+(defun empc-queue-merge (object)
+  "Merge all commands in the queue as a single command_list."
+  (let ((command "command_list_ok_begin\n")
+	(closures nil))
+    (setq closures (dolist (cell (empc-queue object) (reverse closures))
+		     (setq command (concat command (car cell)))
+		     (setq closures (cons (cadr cell) closures))))
+    (setq command (concat command "command_list_end\n"))
+    (setcar (car object) (list (cons command (cons closures 'empc-handle-response-list))))))
 
 (defun empc-commands-set (object commands) (setcdr (cdar object) commands))
 (defun empc-status-put (object attr value) (setcar (cdr object) (plist-put (empc-status object) attr value)))
@@ -540,6 +553,11 @@ songs order is kept into an avector `empc-current-playlist'."
 		(setq song (plist-put song field (concat (plist-get song field) ", " (cdr cell))))
 	      (setq song (plist-put song field (cdr cell))))))))))
 
+(defun empc-response-get-playlistid (data)
+  "Parse a single song and insert it into playlist-songs."
+  (let ((song (empc-response-parse-song data)))
+    (puthash (plist-get song :id) song (empc-playlist-songs empc-object))))
+
 (defun empc-response-get-plchangesposid (data)
   "Parse information regarding changes in the playlist since the last version."
   (let ((songs-to-fetch)
@@ -552,14 +570,8 @@ songs order is kept into an avector `empc-current-playlist'."
 	    (cpos (string-to-number (cdadr data))))
 	(setq data (cddr data))
 	(unless (gethash id (empc-playlist-songs empc-object))
-	  (setq songs-to-fetch (cons (cons (concat "playlistid " (number-to-string id)) `(lambda (data)
-										    (puthash ,id (empc-response-parse-song data)
-											     (empc-playlist-songs empc-object))))
-				     songs-to-fetch)))
-	(aset (empc-playlist empc-object) cpos id)))
-    (if songs-to-fetch
-	(empc-send-list songs-to-fetch)
-      (empc-populate-playlist-buffer))))
+	  (empc-send-playlistid id))
+	(aset (empc-playlist empc-object) cpos id)))))
 
 (defun empc-response-idle (data)
   "React from idle interruption."
@@ -609,12 +621,10 @@ ARG is nil."
 (defun empc-initialize ()
   "Initialize the client after connection.
 Send the password or retrieve available commands."
-  (empc-send-list `(,(when empc-server-password
-		    `(,(concat "password " empc-server-password)))
-		    ("commands" . empc-response-get-commands)
-		    ("status" . empc-response-get-status))
-		  ;'("playlistinfo" . empc-response-get-playlist)
-		  )
+  (when empc-server-password
+    (empc-send-password empc-server-password))
+  (empc-send-commands)
+  (empc-send-status)
   (empc-mode-line t)
   (setq empc-last-crossfade nil))
 
@@ -676,18 +686,6 @@ CLOSURE will be called on the parsed response."
   (let ((output))
     (empc-send-sync command nil (lambda (closures msg) (setq output msg)))
     output))
-
-(defun empc-send-list (commands)
-  "Send COMMANDS to the mpd server using command_list.
-COMMANDS is a list of cons of the form: '(COMMAND . CLOSURE),
-where CLOSURE (may be a list of functions) will be called on the parsed response."
-  (let ((command "command_list_ok_begin\n")
-	(closures nil))
-    (setq closures (dolist (cell commands (reverse closures))
-		     (setq command (concat command (car cell) "\n"))
-		     (setq closures (cons (cdr cell) closures))))
-    (setq command (concat command "command_list_end\n"))
-    (empc-send command closures 'empc-handle-response-list)))
 
 (defun empc-stream-start ()
   "Start the stream process if the command to mpd returned successfully.
@@ -814,6 +812,7 @@ computed using point in buffer."
 ;; The current playlist
 (empc-define-simple-command "clear")
 (empc-define-command-with-pos "delete")
+(empc-define-simple-command "playlistid" 'empc-response-get-playlistid)
 (empc-define-simple-command "playlistinfo" 'empc-response-get-playlist)
 (empc-define-simple-command "plchangesposid" 'empc-response-get-plchangesposid)
 (empc-define-simple-command "shuffle")
@@ -828,6 +827,7 @@ computed using point in buffer."
 ;; Connection settings
 (empc-define-simple-command "close")
 (empc-define-simple-command "kill")
+(empc-define-simple-command "password")
 (empc-define-simple-command "ping")
 
 ;; Audio output devices
