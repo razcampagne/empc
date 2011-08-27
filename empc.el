@@ -670,10 +670,13 @@ Send the password or retrieve available commands."
   "Send COMMAND to the mpd server.
 CLOSURE will be called on the parsed response."
   (empc-ensure-connected)
-  (unless (string= (substring command -1) "\n")
-    (setq command (concat command "\n")))
-  (empc-queue-push empc-object command closure
-		   (if handler handler 'empc-handle-response)))
+  (if (memq command (empc-commands empc-object))
+      (progn
+	(unless (string= (substring command -1) "\n")
+	  (setq command (concat command "\n")))
+	(empc-queue-push empc-object command closure
+			 (if handler handler 'empc-handle-response)))
+    (message "empc: Command `%s' is not available (not supported by the server or forbidden to you)" command))
 
 (defun empc-send-sync (command &optional closure handler)
   "Send COMMAND synchronously. That means empc will push the
