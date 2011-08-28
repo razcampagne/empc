@@ -677,7 +677,7 @@ CLOSURE will be called on the parsed response."
 	  (setq command (concat command "\n")))
 	(empc-queue-push empc-object command closure
 			 (if handler handler 'empc-handle-response)))
-    (message "empc: Command `%s' is not available (not supported by the server or forbidden to you)" command))
+    (message "empc: Command `%s' is not available (not supported by the server or forbidden to you)" command)))
 
 (defun empc-send-sync (command &optional closure handler)
   "Send COMMAND synchronously. That means empc will push the
