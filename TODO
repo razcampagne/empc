@@ -34,34 +34,27 @@
   CLOSED: [2011-08-24 Wed 18:21]
   Need more flexibility and need to be able to play with the current buffer even in background
 
+* DONE Sync transfert when required
+  CLOSED: [2011-08-29 Mon 12:10]
+
 * DONE Recreate the playlist using only the diff between the current version and the previous one
   CLOSED: [2011-08-27 Sat 17:41]
 
-* TODO Merge the queue when there is 2 or more commands pending
+* DONE Merge the queue when there is 2 or more commands pending
+  CLOSED: [2011-08-29 Mon 12:10]
   Manage command_lists directly in the queue
 
 * TODO Create a proper playlist-mode
   - Use format-like string to let the user change the format of a song appearing
     in the playlist. (see [[file:~/.myconfigs/.emacs.d/el-get/nognus/lisp/gnus-spec.el::(defun%20gnus-parse-simple-format%20(format%20spec-alist%20&optional%20insert)][gnus-parse-simple-format]] and [[file:~/.myconfigs/.emacs.d/el-get/nognus/lisp/gnus-sum.el::(defvar%20gnus-summary-line-format-alist][gnus-summary-line-format-alist]])
 
-  - Need to keep data shown in buffers separated from data given by the server to
-    be able to prevent inconsistencies in the user interface.
+  - Library of functions formatting the buffer
 
 * TODO Better notification system
-
-* TODO Sync transfert when required
-
-* TODO Allow tampering the playlist
 
 * TODO Display the music database in another buffer
 
 * TODO Allow interactions between the database and the playlist
-
-* TODO Write a macro defining commands requiring an argument
-  Let the possibility to use ido or anything
-
-* TODO Let the user easily create its own multi commands using predefined keywords
-  Create these keywords in the various macro definitions
 
 * TODO Why do I get disconnected when updating the db?
 
