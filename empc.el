@@ -164,6 +164,7 @@ SERVICE is the name of the service desired, or an integer specifying
 
   (let* ((process (open-network-stream name buffer host service))
 	 (object `((nil ,process) nil nil))) ;; this weird form represents an empty object as described in empc-object
+    (empc-commands-set object '("password" "commands" "status" "idle"))
     (empc-queue-push object nil nil `(lambda (proc string)
 				      (message "Connection to %s established" ',host)))
     (set-process-filter process `(lambda (proc string)
@@ -671,7 +672,7 @@ Send the password or retrieve available commands."
   "Send COMMAND to the mpd server.
 CLOSURE will be called on the parsed response."
   (empc-ensure-connected)
-  (if (memq command (empc-commands empc-object))
+  (if (member (car (split-string command)) (empc-commands empc-object))
       (progn
 	(unless (string= (substring command -1) "\n")
 	  (setq command (concat command "\n")))
@@ -721,7 +722,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   "Update the status and execute the forms in BODY."
   `(if (empc-status empc-object)
        ,@body
-     (empc-send "status\n" '(empc-response-get-status (lambda (data) ,@body)))))
+     (empc-send "status" '(empc-response-get-status (lambda (data) ,@body)))))
 
 (defmacro empc-define-simple-command (command &optional closure)
   "Define a simple command that doesn't need an argument."
@@ -730,7 +731,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (interactive)
      (let ((debug-on-error t))
        (empc-send (concat ,command (when arg (concat " " (if (stringp arg)
-									 arg (number-to-string arg)))) "\n")
+							     arg (number-to-string arg)))))
 		  ,closure))))
 
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
@@ -740,7 +741,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
      (interactive)
      (let ((debug-on-error t))
        (if state
-	   (empc-send (concat ,(concat command " ") (int-to-string state) "\n"))
+	   (empc-send (concat ,(concat command " ") (int-to-string state)))
 	 (with-updated-status
 	  (let ((,(if attr attr
 		    (intern command))
@@ -750,7 +751,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	    ,(if body
 		 `(progn ,@body)
 	       `(empc-send (concat ,command (if (= ,(if attr attr
-							     (intern command)) 1) " 0" " 1") "\n")))))))))
+							     (intern command)) 1) " 0" " 1"))))))))))
 
 (defmacro empc-define-command-with-pos (command &optional closure)
   "Define a command that need a position either as a parameter or
@@ -763,7 +764,7 @@ computed using point in buffer."
        (unless pos
 	 (setq pos (count-lines (point-min) (point))))
        (let ((id (elt (empc-playlist empc-object) pos)))
-	 (empc-send (concat ,(concat command "id ") (number-to-string id) "\n") ,closure)))))
+	 (empc-send (concat ,(concat command "id ") (number-to-string id)) ,closure)))))
 
 (defmacro empc-define-command-with-current-id (command &optional closure)
   "Define a command that uses the current song as a parameter."
@@ -773,7 +774,7 @@ computed using point in buffer."
      (let ((debug-on-error t))
        (empc-send (concat ,(concat command "id ")
 			  (number-to-string (empc-status-get empc-object :songid))
-			  (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))) "\n")
+			  (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))))
 		  ,closure))))
 
 ;; Querying MPD's status
