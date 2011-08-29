@@ -147,7 +147,7 @@ If there is no command left to send, put the client in idle state."
 (defun empc-status-get (object attr) (plist-get (empc-status object) attr))
 (defun empc-playlist-set (object playlist) (setcar (cddr object) playlist))
 (defun empc-playlist-songs-set (object playlist-songs) (setcdr (cddr object) playlist-songs))
-(defun empc-song (object pos) (gethash (elt (empc-playlist object) pos) (empc-playlist-songs object)))
+(defun empc-song (object id) (gethash id (empc-playlist-songs object)))
 (defun empc-current-song (object) (gethash (empc-status-get object :songid) (empc-playlist-songs object)))
 
 (defun empc-create (name buffer host service)
@@ -489,10 +489,23 @@ According to what is in the diff, several actions can be performed:
     (let ((buffer-read-only nil))
       (erase-buffer)
       (when (empc-playlist-songs empc-object)
-	(dotimes (pos (length (empc-playlist empc-object)))
-	  (let ((song (empc-song empc-object pos)))
-	    (insert (empc-song-to-string song) "\n"))))))
-  (empc-playlist-goto-current-song))
+	(mapcar (lambda (id)
+		  (empc-playlist-insert-song (empc-song empc-object id)))
+		(empc-playlist empc-object))))))
+
+(defun empc-playlist-insert-song (song)
+  "Insert SONG into the playlist buffer."
+  (save-window-excursion
+    (empc-switch-to-playlist)
+    (let ((buffer-read-only nil))
+      (goto-char (point-min))
+      (let ((needed-lines (forward-line (plist-get song :pos))))
+	(when (or (> needed-lines 0) (eq (point) (point-max)))
+	    (dotimes (i (1+ needed-lines))
+	      (insert "\n"))
+	    (forward-line -1)))
+      (kill-region (line-beginning-position) (line-end-position))
+      (insert (empc-song-to-string song)))))
 
 (defun empc-response-get-playlist (data)
   "Parse information regarding songs in current playlist and arrange it into a
@@ -537,12 +550,12 @@ songs order is kept into an avector `empc-current-playlist'."
 (defun empc-response-get-playlistid (data)
   "Parse a single song and insert it into playlist-songs."
   (let ((song (empc-response-parse-song data)))
-    (puthash (plist-get song :id) song (empc-playlist-songs empc-object))))
+    (puthash (plist-get song :id) song (empc-playlist-songs empc-object))
+    (empc-playlist-insert-song song)))
 
 (defun empc-response-get-plchangesposid (data)
   "Parse information regarding changes in the playlist since the last version."
-  (let ((songs-to-fetch)
-	(new-pl (make-vector (empc-status-get empc-object :playlistlength) nil)))
+  (let ((new-pl (make-vector (empc-status-get empc-object :playlistlength) nil)))
     (dotimes (i (min (length new-pl) (length (empc-playlist empc-object))))
       (aset new-pl i (aref (empc-playlist empc-object) i)))
     (empc-playlist-set empc-object new-pl)
