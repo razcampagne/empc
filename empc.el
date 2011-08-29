@@ -214,44 +214,23 @@ For status:
     (format "%d:%.2d" (/ time 60) (mod time 60))))
 
 (defun empc-song-to-string (song)
-  "Return a string as per `empc-playlist-song-format' variable using SONG's attributes."
-  (if song
-      (let* ((time (empc-time-to-string (plist-get song :time)))
-	     (file (plist-get song :file))
-	     (artist (plist-get song :artist))
-	     (title (plist-get song :title))
-	     (album (plist-get song :album))
-	     (date (when (plist-member song :date) (number-to-string (plist-get song :date))))
-	     (track (plist-get song :track))
-	     (genre (plist-get song :genre))
-	     (pos (number-to-string (plist-get song :pos)))
-	     (string-format `(concat ,@empc-song-format)))
-	(eval string-format))
-    ""))
+  "Return a string representing a song formatted for the playlist buffer."
+  (when song
+    (concat (empc-time-to-string (plist-get song :time)) "\t"
+	    (if (and (plist-member song :artist) (plist-member song :title))
+		(concat (plist-get song :artist) " - " (plist-get song :title))
+	      (plist-get song :file)))))
 
 (defun empc-mode-line-to-string ()
-  "Return a string as per `empc-mode-line-format'."
-  (if (empc-current-song empc-object)
-      (let* ((song (empc-current-song empc-object))
-	     (status (empc-status empc-object))
-	     (time (empc-time-to-string (plist-get song :time)))
-	     (file (plist-get song :file))
-	     (artist (plist-get song :artist))
-	     (title (plist-get song :title))
-	     (album (plist-get song :album))
-	     (date (when (plist-member song :date) (number-to-string (plist-get song :date))))
-	     (track (plist-get song :track))
-	     (genre (plist-get song :genre))
-	     (pos (number-to-string (1+ (plist-get song :pos))))
-	     (playlistlength (number-to-string (plist-get status :playlistlength)))
-	     (state (symbol-name (plist-get status :state)))
-	     (string-format `(concat ,@empc-mode-line-format)))
-	(eval string-format))
-    (let* ((status (empc-status empc-object))
-	   (state (symbol-name (plist-get status :state)))
-	   (playlistlength (number-to-string (plist-get status :playlistlength)))
-	   (string-format `(concat ,@empc-mode-line-format)))
-      (eval string-format))))
+  "Return a string to write to the mode-line."
+  (if (eq (empc-status-get empc-object :state) 'play)
+      (concat " [" (number-to-string (empc-status-get empc-object :song)) "/" (number-to-string (empc-status-get empc-object :playlistlength)) "] "
+	      (if (and (plist-member (empc-current-song empc-object) :artist)
+		       (plist-member (empc-current-song empc-object) :title))
+		  (concat (plist-get (empc-current-song empc-object) :artist)
+			  " - " (plist-get (empc-current-song empc-object) :title))
+		(plist-get (empc-current-song empc-object) :file)))
+    (concat " " (symbol-name (empc-status-get empc-object :state)))))
 
 (defvar empc-last-crossfade nil)
 (defvar empc-mode-line-string "")
