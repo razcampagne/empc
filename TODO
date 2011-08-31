@@ -59,3 +59,9 @@
 * TODO Why do I get disconnected when updating the db?
 
 * TODO Allow Wikipedia/Last.fm/Lyrics search from within empc
+
+* TODO Simulate an Undo feature
+
+* TODO Add an ephemeral state
+  - Keep a copy of the expected (status . playlist) in the queue
+  - Subsequent commands will work with this not yet existant '(status . playlist)
