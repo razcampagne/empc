@@ -98,9 +98,9 @@ playlist is a vector of song ids, keeping the order of the songs
 (defun empc-playlist-songs (object) (cdddr object))
 (defun empc-playlist (object) (caddr object))
 
-(defun empc-queue-head-command (object) (caaaar object))
-(defun empc-queue-head-closure (object) (car (cdaaar object)))
-(defun empc-queue-head-fn (object) (cdr (cdaaar object)))
+(defun empc-queue-head-command (object) (caar (empc-queue object)))
+(defun empc-queue-head-closure (object) (cadar (empc-queue object)))
+(defun empc-queue-head-fn (object) (cddar (empc-queue object)))
 (defun empc-queue-push (object command closure fn)
   "Enqueue '(COMMAND . (CLOSURE . FN)) to the queue of OBJECT.
 Leave the idle state beforehand if necessary."
@@ -151,6 +151,27 @@ If there is no command left to send, put the client in idle state."
 (defun empc-song-by-pos (object pos) (empc-song-by-id object (elt (empc-playlist object) pos)))
 (defun empc-current-song (object) (gethash (empc-status-get object :songid) (empc-playlist-songs object)))
 
+(defun empc-modified (object)
+  "Return true if the object has been modified between the moment
+  the command has been sent and the moment the response came."
+  (> (length (empc-queue object)) 1))
+
+(defun empc-update-playlistsongs (object)
+  "Fix songs position in the playlist."
+  (let ((i 0)
+	hash-items)
+    (mapcar (lambda (id)
+	      (puthash id (plist-put (empc-song-by-id object id) :pos i) (empc-playlist-songs object))
+	      (incf i))
+	    (empc-playlist object))
+    (let ((playlist-items (append (empc-playlist object) nil)))
+      (maphash (lambda (key value)
+		 (unless (memq key playlist-items)
+		   (setq hash-items (cons key hash-items))))
+	       (empc-playlist-songs object)))
+    (mapcar (lambda (id)
+	      (remhash id (empc-playlist-songs object))) hash-items)))
+
 (defun empc-create (name buffer host service)
   "Create and return a new object for empc. The parameters are as follows:
 
@@ -165,8 +186,8 @@ SERVICE is the name of the service desired, or an integer specifying
 
   (let* ((process (open-network-stream name buffer host service))
 	 (object `((nil ,process) nil nil))) ;; this weird form represents an empty object as described in empc-object
-    (empc-commands-set object '("password" "commands" "status" "idle"))
-    (empc-queue-push object nil nil `(lambda (proc string)
+    (empc-commands-set object '("password" "commands" "status" "playlistinfo" "idle"))
+    (empc-queue-push object nil nil `(lambda (command closure msg)
 				      (message "Connection to %s established" ',host)))
     (set-process-filter process `(lambda (proc string)
 				  (empc-process-filter ',object string)))
@@ -302,6 +323,7 @@ For status:
     (when complete-response
       (unwind-protect
 	  (funcall (empc-queue-head-fn object)
+		   (empc-queue-head-command object)
 		   (empc-queue-head-closure object) complete-response)
 	(empc-queue-pop object))
       (empc-process-buffer object))))
@@ -380,7 +402,7 @@ form '('error (error-code . error-message))."
 		  (setq result (cons response result)
 			response nil))))))))))
 
-(defun empc-response-get-commands (data)
+(defun empc-response-get-commands (command data)
   "Parse DATA to get the available commands."
   (let ((commands))
     (dolist (cell data)
@@ -391,7 +413,7 @@ form '('error (error-code . error-message))."
   "Return `on' or `off' if KEY is active or inactive in STATUS."
   (if (= (plist-get status key) 0) "off" "on"))
 
-(defun empc-response-get-status (data)
+(defun empc-response-get-status (command data)
   "Parse DATA to get a diff with `empc-current-status'.
 
 According to what is in the diff, several actions can be performed:
@@ -420,10 +442,6 @@ According to what is in the diff, several actions can be performed:
 							 (empc-status-on/off-stringify (empc-status empc-object) :single)
 							 (empc-status-on/off-stringify (empc-status empc-object) :consume)
 							 (empc-status-on/off-stringify (empc-status empc-object) :xfade))))))
-    (when (plist-member status-diff :playlist)
-      (if (and (empc-playlist-songs empc-object) (empc-status-get empc-object :playlist))
-	  (empc-send-plchangesposid (empc-status-get empc-object :playlist))
-	(empc-send-playlistinfo)))
     (while status-diff
       (let ((attr (car status-diff))
 	    (value (cadr status-diff)))
@@ -533,41 +551,34 @@ According to what is in the diff, several actions can be performed:
   "Kill SONG from the playlist."
   (empc-with-current-playlist
    (let ((songs (if (listp (car song)) song
-		  (list song)))
-	 ids)
+		  (list song))))
      (mapcar (lambda (song)
 	       (goto-char (point-min))
 	       (forward-line (plist-get song :pos))
-	       (kill-line 1)
-	       (setq ids (cons (plist-get song :id) ids)))
-	     songs)
-     (empc-playlist-set empc-object (delete-if (lambda (id) (memq id ids))
-					       (empc-playlist empc-object)))
-     (let ((i 0))
-       (mapcar (lambda (id)
-		 (puthash id (plist-put (empc-song-by-id empc-object id) :pos i) (empc-playlist-songs empc-object))
-		 (incf i))
-	       (empc-playlist empc-object))))))
+	       (kill-line 1))
+	     songs))))
 
 (defun empc-playlist-delete-song ()
   "Delete song at point or a range of song if the mark is
   active."
   (interactive)
-  (if (and mark-active (use-region-p))
-      (call-interactively 'empc-playlist-delete-region)
-    (let ((songs (empc-playlist-get-songs (point))))
-      (when songs
-	(empc-send-deleteid (plist-get (car songs) :id))
-	(empc-playlist-kill-song (car songs))))))
+  (let (ids
+	(songs (if (and mark-active (use-region-p))
+		   (call-interactively (lambda (begin end)
+					 (interactive "r")
+					 (empc-playlist-get-songs begin end)))
+		 (empc-playlist-get-songs (point)))))
+    (when songs
+      (mapcar (lambda (song)
+		(empc-send-deleteid (plist-get song :id))
+		(empc-playlist-kill-song song)
+		(setq ids (cons (plist-get song :id) ids)))
+	      songs)
+      (empc-playlist-set empc-object (delete-if (lambda (id) (memq id ids))
+						(empc-playlist empc-object)))
+      (empc-update-playlistsongs empc-object))))
 
-(defun empc-playlist-delete-region (&optional begin end)
-  "Delete a range of song."
-  (interactive "r")
-  (let ((songs (empc-playlist-get-songs begin end)))
-    (mapcar (lambda (song) (empc-send-deleteid (plist-get song :id))) songs)
-    (mapcar 'empc-playlist-kill-song songs)))
-
-(defun empc-response-get-playlist (data)
+(defun empc-response-get-playlist (command data)
   "Parse information regarding songs in current playlist and arrange it into a
 hash table `empc-current-playlist-songs'sorted by songid.
 songs order is kept into an avector `empc-current-playlist'."
@@ -607,64 +618,71 @@ songs order is kept into an avector `empc-current-playlist'."
 		(setq song (plist-put song field (concat (plist-get song field) ", " (cdr cell))))
 	      (setq song (plist-put song field (cdr cell))))))))))
 
-(defun empc-response-get-playlistid (data)
+(defun empc-response-get-playlistid (command data)
   "Parse a single song and insert it into playlist-songs."
   (let ((song (empc-response-parse-song data)))
     (puthash (plist-get song :id) song (empc-playlist-songs empc-object))
     (empc-playlist-insert-song song)))
 
-(defun empc-response-get-plchangesposid (data)
+(defun empc-response-get-plchangesposid (command data)
   "Parse information regarding changes in the playlist since the last version."
-  (let ((new-pl (make-vector (empc-status-get empc-object :playlistlength) nil)))
-    (dotimes (i (min (length new-pl) (length (empc-playlist empc-object))))
-      (aset new-pl i (aref (empc-playlist empc-object) i)))
-    (empc-playlist-set empc-object new-pl)
-    (while data
-      (let ((id (string-to-number (cdar data)))
-	    (cpos (string-to-number (cdadr data))))
-	(setq data (cddr data))
-	(let ((song (gethash id (empc-playlist-songs empc-object))))
-	  (if (not song)
-	      (empc-send-playlistid id)
-	    (puthash id (setq song (plist-put song :pos cpos)) (empc-playlist-songs empc-object))
-	    (empc-playlist-insert-song song)))
-	(aset (empc-playlist empc-object) cpos id)))))
+  (if (empc-modified empc-object)
+      (empc-send command 'empc-response-get-plchangesposid)
+    (let ((new-pl (make-vector (empc-status-get empc-object :playlistlength) nil)))
+      (dotimes (i (min (length new-pl) (length (empc-playlist empc-object))))
+	(aset new-pl i (aref (empc-playlist empc-object) i)))
+      (empc-playlist-set empc-object new-pl)
+      (while data
+	(let ((id (string-to-number (cdar data)))
+	      (cpos (string-to-number (cdadr data))))
+	  (setq data (cddr data))
+	  (let ((song (gethash id (empc-playlist-songs empc-object))))
+	    (if (not song)
+		(empc-send-playlistid id)
+	      (puthash id (setq song (plist-put song :pos cpos)) (empc-playlist-songs empc-object))
+	      (empc-playlist-insert-song song)))
+	  (aset (empc-playlist empc-object) cpos id))))))
 
-(defun empc-response-idle (data)
+(defun empc-response-idle (command data)
   "React from idle interruption."
   (dolist (cell data)
     (when (string= (car cell) "changed")
       (let ((changed (cdr cell)))
 	(cond
-	 ((member changed '("player" "options" "playlist"))
-	  (empc-send-status)))))))
+	 ((member changed '("player" "options"))
+	  (empc-send-status))
+	 ((member changed '("playlist"))
+	  (empc-send-status)
+	  (empc-send-plchangesposid (empc-status-get empc-object :playlist))))))))
 
-(defun empc-handle-closure-call (closures data)
+(defun empc-handle-closure-call (command closures data)
   "If CLOSURES is a list of function, call them in turn with DATA
   as parameter."
   (when closures
     (if (and (listp closures) (not (memq (car closures) '(quote lambda))))
 	(dolist (closure closures)
-	  (funcall closure data))
-      (funcall closures data))))
+	  (funcall closure command data))
+      (funcall closures command data))))
 
-(defun empc-handle-response (closures msg)
+(defun empc-handle-response (command closures msg)
   "Retrieve the response from the server.
 Check the error code and process it using CLOSURES."
   (let ((data (empc-response-parse-message msg)))
     (if (eq (car data) 'error)
 	(empc-echo-notify (cdr data))
-      (empc-handle-closure-call closures data))))
+      (empc-handle-closure-call command closures data))))
 
-(defun empc-handle-response-list (closures msg)
+(defun empc-handle-response-list (command closures msg)
   "Retrieve the responses from the server.
 Check the error code and process the different responses to the
 commands send as command_list."
-  (let ((data (empc-response-parse-message msg)))
+  (let ((data (empc-response-parse-message msg))
+	(commands (cdr (split-string command "\n"))))
     (if (eq (car data) 'error)
 	(empc-echo-notify (cddr data))
       (dolist (closure closures)
-	(empc-handle-closure-call closure (car data))
+	(empc-handle-closure-call (car commands) closure (car data))
+	(setq commands (cdr commands))
 	(setq data (cdr data))))))
 
 (defun empc-mode-line (arg)
@@ -682,6 +700,7 @@ Send the password or retrieve available commands."
     (empc-send-password empc-server-password))
   (empc-send-commands)
   (empc-send-status)
+  (empc-send-playlistinfo)
   (empc-mode-line t)
   (setq empc-last-crossfade nil))
 
@@ -735,6 +754,12 @@ CLOSURE will be called on the parsed response."
 			 (if handler handler 'empc-handle-response)))
     (message "empc: Command `%s' is not available (not supported by the server or forbidden to you)" command)))
 
+(defun empc-send-retry ()
+  "Resend the last command."
+  (empc-send (empc-queue-head-command empc-object)
+	     (empc-queue-head-closure empc-object)
+	     (empc-queue-head-fn empc-object)))
+
 (defun empc-send-sync (command &optional closure handler)
   "Send COMMAND synchronously. That means empc will push the
   command to the queue before synchronously emptying it."
@@ -777,7 +802,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
   "Update the status and execute the forms in BODY."
   `(if (empc-status empc-object)
        ,@body
-     (empc-send "status" '(empc-response-get-status (lambda (data) ,@body)))))
+     (empc-send "status" '(empc-response-get-status (lambda (command data) ,@body)))))
 
 (defmacro empc-define-simple-command (command &optional closure)
   "Define a simple command that doesn't need an argument."
