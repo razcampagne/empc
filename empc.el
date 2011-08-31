@@ -147,7 +147,8 @@ If there is no command left to send, put the client in idle state."
 (defun empc-status-get (object attr) (plist-get (empc-status object) attr))
 (defun empc-playlist-set (object playlist) (setcar (cddr object) playlist))
 (defun empc-playlist-songs-set (object playlist-songs) (setcdr (cddr object) playlist-songs))
-(defun empc-song (object id) (gethash id (empc-playlist-songs object)))
+(defun empc-song-by-id (object id) (gethash id (empc-playlist-songs object)))
+(defun empc-song-by-pos (object pos) (empc-song-by-id object (elt (empc-playlist object) pos)))
 (defun empc-current-song (object) (gethash (empc-status-get object :songid) (empc-playlist-songs object)))
 
 (defun empc-create (name buffer host service)
@@ -224,7 +225,7 @@ For status:
 (defun empc-mode-line-to-string ()
   "Return a string to write to the mode-line."
   (if (eq (empc-status-get empc-object :state) 'play)
-      (concat " [" (number-to-string (empc-status-get empc-object :song)) "/" (number-to-string (empc-status-get empc-object :playlistlength)) "] "
+      (concat " [" (number-to-string (1+ (empc-status-get empc-object :song))) "/" (number-to-string (empc-status-get empc-object :playlistlength)) "] "
 	      (if (and (plist-member (empc-current-song empc-object) :artist)
 		       (plist-member (empc-current-song empc-object) :title))
 		  (concat (plist-get (empc-current-song empc-object) :artist)
@@ -254,8 +255,8 @@ For status:
 (define-key empc-playlist-map "z" 'empc-toggle-random)
 (define-key empc-playlist-map "x" 'empc-toggle-crossfade)
 (define-key empc-playlist-map "o" 'empc-playlist-goto-current-song)
-(define-key empc-playlist-map [return] 'empc-send-play)
-(define-key empc-playlist-map "d" 'empc-send-delete)
+(define-key empc-playlist-map [return] (lambda () (interactive) (empc-with-song-at-point song (empc-send-playid (plist-get song :id)))))
+(define-key empc-playlist-map "d" 'empc-playlist-delete-song)
 (define-key empc-playlist-map "c" 'empc-send-clear)
 
 (defun empc-process-sentinel (proc event)
@@ -459,6 +460,15 @@ According to what is in the diff, several actions can be performed:
 	(unless (equal (empc-status-get empc-object attr) value)
 	  (setq status-diff (plist-put status-diff attr value)))))))
 
+(defun empc-playlist-get-songs (begin &optional end)
+  "Retreive a list of songs' id between BEGIN and END."
+  (when (eq major-mode 'empc-playlist-mode)
+    (let* ((bpos (1- (line-number-at-pos begin)))
+	   (epos (if end (count-lines begin end) 1))
+	   ids)
+      (dotimes (i epos ids)
+	(setq ids (cons (empc-song-by-pos empc-object (+ bpos i)) ids))))))
+
 (defun empc-playlist-goto-current-song ()
   "Put point at currently playing song."
   (interactive)
@@ -490,22 +500,72 @@ According to what is in the diff, several actions can be performed:
       (erase-buffer)
       (when (empc-playlist-songs empc-object)
 	(mapcar (lambda (id)
-		  (empc-playlist-insert-song (empc-song empc-object id)))
+		  (empc-playlist-insert-song (empc-song-by-id empc-object id)))
 		(empc-playlist empc-object))))))
+
+(defmacro empc-with-current-playlist (&rest body)
+  "Set the playlist buffer as the current one."
+  `(save-window-excursion
+     (empc-switch-to-playlist)
+     (save-excursion
+       (let ((buffer-read-only nil))
+	 ,@body))))
+
+(defmacro empc-with-song-at-point (song &rest body)
+  "Retreive the song at point if applicable."
+  `(when (memq major-mode '(empc-playlist-mode))
+     (let ((,song (empc-song-by-pos empc-object (1- (line-number-at-pos (point))))))
+       ,@body)))
 
 (defun empc-playlist-insert-song (song)
   "Insert SONG into the playlist buffer."
-  (save-window-excursion
-    (empc-switch-to-playlist)
-    (let ((buffer-read-only nil))
-      (goto-char (point-min))
-      (let ((needed-lines (forward-line (plist-get song :pos))))
-	(when (or (> needed-lines 0) (eq (point) (point-max)))
-	    (dotimes (i (1+ needed-lines))
-	      (insert "\n"))
-	    (forward-line -1)))
-      (kill-region (line-beginning-position) (line-end-position))
-      (insert (empc-song-to-string song)))))
+  (empc-with-current-playlist
+   (goto-char (point-min))
+   (let ((needed-lines (forward-line (plist-get song :pos))))
+     (when (or (> needed-lines 0) (eq (point) (point-max)))
+       (dotimes (i (1+ needed-lines))
+	 (insert "\n"))
+       (forward-line -1)))
+   (kill-region (line-beginning-position) (line-end-position))
+   (insert (empc-song-to-string song))))
+
+(defun empc-playlist-kill-song (song)
+  "Kill SONG from the playlist."
+  (empc-with-current-playlist
+   (let ((songs (if (listp (car song)) song
+		  (list song)))
+	 ids)
+     (mapcar (lambda (song)
+	       (goto-char (point-min))
+	       (forward-line (plist-get song :pos))
+	       (kill-line 1)
+	       (setq ids (cons (plist-get song :id) ids)))
+	     songs)
+     (empc-playlist-set empc-object (delete-if (lambda (id) (memq id ids))
+					       (empc-playlist empc-object)))
+     (let ((i 0))
+       (mapcar (lambda (id)
+		 (puthash id (plist-put (empc-song-by-id empc-object id) :pos i) (empc-playlist-songs empc-object))
+		 (incf i))
+	       (empc-playlist empc-object))))))
+
+(defun empc-playlist-delete-song ()
+  "Delete song at point or a range of song if the mark is
+  active."
+  (interactive)
+  (if (and mark-active (use-region-p))
+      (call-interactively 'empc-playlist-delete-region)
+    (let ((songs (empc-playlist-get-songs (point))))
+      (when songs
+	(empc-send-deleteid (plist-get (car songs) :id))
+	(empc-playlist-kill-song (car songs))))))
+
+(defun empc-playlist-delete-region (&optional begin end)
+  "Delete a range of song."
+  (interactive "r")
+  (let ((songs (empc-playlist-get-songs begin end)))
+    (mapcar (lambda (song) (empc-send-deleteid (plist-get song :id))) songs)
+    (mapcar 'empc-playlist-kill-song songs)))
 
 (defun empc-response-get-playlist (data)
   "Parse information regarding songs in current playlist and arrange it into a
@@ -563,8 +623,11 @@ songs order is kept into an avector `empc-current-playlist'."
       (let ((id (string-to-number (cdar data)))
 	    (cpos (string-to-number (cdadr data))))
 	(setq data (cddr data))
-	(unless (gethash id (empc-playlist-songs empc-object))
-	  (empc-send-playlistid id))
+	(let ((song (gethash id (empc-playlist-songs empc-object))))
+	  (if (not song)
+	      (empc-send-playlistid id)
+	    (puthash id (setq song (plist-put song :pos cpos)) (empc-playlist-songs empc-object))
+	    (empc-playlist-insert-song song)))
 	(aset (empc-playlist empc-object) cpos id)))))
 
 (defun empc-response-idle (data)
@@ -710,7 +773,7 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
     (switch-to-buffer "*empc*")))
    (empc-playlist-mode))
 
-(defmacro with-updated-status (&rest body)
+(defmacro empc-with-updated-status (&rest body)
   "Update the status and execute the forms in BODY."
   `(if (empc-status empc-object)
        ,@body
@@ -728,46 +791,24 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 
 (defmacro empc-define-toggle-command (command &optional state-name attr &rest body)
   "Define a command that toggle a state."
-  `(defun ,(intern (concat "empc-toggle-" command)) (&optional state)
-     ,(concat "Toggle " command ".")
-     (interactive)
-     (let ((debug-on-error t))
-       (if state
-	   (empc-send (concat ,(concat command " ") (int-to-string state)))
-	 (with-updated-status
-	  (let ((,(if attr attr
-		    (intern command))
-		 (empc-status-get empc-object (quote ,(intern (concat ":" (if state-name
-									 state-name
-								       command)))))))
-	    ,(if body
-		 `(progn ,@body)
-	       `(empc-send (concat ,command (if (= ,(if attr attr
-							     (intern command)) 1) " 0" " 1"))))))))))
-
-(defmacro empc-define-command-with-pos (command &optional closure)
-  "Define a command that need a position either as a parameter or
-computed using point in buffer."
-  `(defun ,(intern (concat "empc-send-" command)) (&optional pos)
-     ,(concat "Send " command " to the server together with an ID
-     parameter computed using pos or cursor position.")
-     (interactive)
-     (let ((debug-on-error t))
-       (unless pos
-	 (setq pos (count-lines (point-min) (point))))
-       (let ((id (elt (empc-playlist empc-object) pos)))
-	 (empc-send (concat ,(concat command "id ") (number-to-string id)) ,closure)))))
-
-(defmacro empc-define-command-with-current-id (command &optional closure)
-  "Define a command that uses the current song as a parameter."
-  `(defun ,(intern (concat "empc-send-" command)) (&optional arg)
-     ,(concat "Send " command " to the server with the ID of the currently playing song.")
-     (interactive)
-     (let ((debug-on-error t))
-       (empc-send (concat ,(concat command "id ")
-			  (number-to-string (empc-status-get empc-object :songid))
-			  (when arg (concat " " (if (stringp arg) arg (number-to-string arg)))))
-		  ,closure))))
+  `(progn
+     (empc-define-simple-command ,command)
+     (defun ,(intern (concat "empc-toggle-" command)) (&optional state)
+       ,(concat "Toggle " command ".")
+       (interactive)
+       (let ((debug-on-error t))
+	 (if state
+	     (,(intern (concat "empc-send-" command)) (int-to-string state))
+	   (empc-with-updated-status
+	    (let ((,(if attr attr
+		      (intern command))
+		   (empc-status-get empc-object (quote ,(intern (concat ":" (if state-name
+										state-name
+									      command)))))))
+	      ,(if body
+		   `(progn ,@body)
+		 `(,(intern (concat "empc-send-" command)) ,(if attr attr
+							      (intern command)))))))))))
 
 ;; Querying MPD's status
 (empc-define-simple-command "clearerror")
@@ -777,7 +818,6 @@ computed using point in buffer."
 
 ;; Playback options
 (empc-define-toggle-command "consume")
-(empc-define-simple-command "crossfade")
 (empc-define-toggle-command "crossfade" "xfade" xfade
 			    (if (= xfade 0)
 				(empc-send-crossfade (if empc-last-crossfade
@@ -793,7 +833,6 @@ computed using point in buffer."
 
 ;; Controlling playback
 (empc-define-simple-command "next")
-(empc-define-simple-command "pause")
 (empc-define-toggle-command "pause" "state" state
 			    (cond
 			     ((eq state 'play)
@@ -801,14 +840,13 @@ computed using point in buffer."
 			     ((eq state 'pause)
 			      (empc-send-pause 0))
 			     (t (empc-send-play))))
-(empc-define-command-with-pos "play")
+(empc-define-simple-command "playid")
 (empc-define-simple-command "previous")
-(empc-define-command-with-current-id "seek")
 (empc-define-simple-command "stop")
 
 ;; The current playlist
 (empc-define-simple-command "clear")
-(empc-define-command-with-pos "delete")
+(empc-define-simple-command "deleteid")
 (empc-define-simple-command "playlistid" 'empc-response-get-playlistid)
 (empc-define-simple-command "playlistinfo" 'empc-response-get-playlist)
 (empc-define-simple-command "plchangesposid" 'empc-response-get-plchangesposid)
