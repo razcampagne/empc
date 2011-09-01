@@ -60,8 +60,12 @@
 
 * TODO Allow Wikipedia/Last.fm/Lyrics search from within empc
 
-* TODO Simulate an Undo feature
+* TODO Simulate an Undo/Redo feature
+  Keep a separated queue for sent commands
 
 * TODO Add an ephemeral state
   - Keep a copy of the expected (status . playlist) in the queue
   - Subsequent commands will work with this not yet existant '(status . playlist)
+* TODO Prevent sending unnecessary commands
+  If there is already one on the queue, for example
+* TODO Add a timeout that reconnects to the server
