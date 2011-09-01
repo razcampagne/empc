@@ -64,11 +64,13 @@ return at the end of a request.")
   "Structure containing data for empc.
 The structure is of the form:
 
-	((queue . (process . commands)) . (status . (playlist . playlist-songs)))
+	((queue . (process . (log . commands))) . (status . (playlist . playlist-songs)))
 
 The fields are describe below:
 
 process keeps the network-stream object.
+
+log is the log buffer that keeps all commands sent to the server.
 
 queue stores the commands to send to the server as well as the
   function to call when receiving the response, and a closure to
@@ -91,9 +93,10 @@ playlist is a vector of song ids, keeping the order of the songs
 
 ;; Accessors for the empc object.
 (defun empc-process (object) (cadar object))
+(defun empc-log (object) (caddar object))
 (defun empc-queue (object) (caar object))
 (defun empc-stream (object) empc-stream-process)
-(defun empc-commands (object) (cddar object))
+(defun empc-commands (object) (cdddar object))
 (defun empc-status (object) (cadr object))
 (defun empc-playlist-songs (object) (cdddr object))
 (defun empc-playlist (object) (caddr object))
@@ -105,6 +108,10 @@ playlist is a vector of song ids, keeping the order of the songs
   "Enqueue '(COMMAND . (CLOSURE . FN)) to the queue of OBJECT.
 Leave the idle state beforehand if necessary."
   (when (empc-process object)
+    (when command
+      (with-current-buffer (empc-log object)
+	(goto-char (point-max))
+	(insert command)))
     (if (empc-queue object)
 	(when (string= (empc-queue-head-command object) "idle\n")
 	  (setcar (caaar object) "noidle\n")
@@ -142,7 +149,7 @@ If there is no command left to send, put the client in idle state."
     (setq command (concat command "command_list_end\n"))
     (setcar (car object) (list (cons command (cons closures 'empc-handle-response-list))))))
 
-(defun empc-commands-set (object commands) (setcdr (cdar object) commands))
+(defun empc-commands-set (object commands) (setcdr (cddar object) commands))
 (defun empc-status-put (object attr value) (setcar (cdr object) (plist-put (empc-status object) attr value)))
 (defun empc-status-get (object attr) (plist-get (empc-status object) attr))
 (defun empc-playlist-set (object playlist) (setcar (cddr object) playlist))
@@ -185,8 +192,8 @@ SERVICE is the name of the service desired, or an integer specifying
  a port number to connect to."
 
   (let* ((process (open-network-stream name buffer host service))
-	 (object `((nil ,process) nil nil))) ;; this weird form represents an empty object as described in empc-object
-    (empc-commands-set object '("password" "commands" "status" "playlistinfo" "idle"))
+	 (object `((nil ,process ,(generate-new-buffer "*empc-log*") . ("password" "commands" "status" "playlistinfo" "idle")) nil nil))) ;; this weird form represents an empty object as described in empc-object
+;    (empc-commands-set object '("password" "commands" "status" "playlistinfo" "idle"))
     (empc-queue-push object nil nil `(lambda (command closure msg)
 				      (message "Connection to %s established" ',host)))
     (set-process-filter process `(lambda (proc string)
