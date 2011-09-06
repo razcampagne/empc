@@ -365,11 +365,12 @@ For status:
   (interactive)
   (unless song
     (setq song (empc-current-song empc-object)))
-  (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
-			    "/" (int-to-string (empc-status-get empc-object :playlistlength)) "] "
-			    (if (and (plist-get song :artist) (plist-get song :title))
-				(concat (plist-get song :artist) " - " (plist-get song :title))
-			      (plist-get song :file)))))
+  (when song
+    (empc-echo-notify (concat "[" (int-to-string (+ (plist-get song :pos) 1))
+			      "/" (int-to-string (empc-status-get empc-object :playlistlength)) "] "
+			      (if (and (plist-get song :artist) (plist-get song :title))
+				  (concat (plist-get song :artist) " - " (plist-get song :title))
+				(plist-get song :file))))))
 
 (defun empc-mode-line-update ()
   "Change the string to write in the mode-line and force-update it."
