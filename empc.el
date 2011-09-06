@@ -566,6 +566,14 @@ According to what is in the diff, several actions can be performed:
 	       (kill-line 1))
 	     songs))))
 
+(defun empc-playlist-clean-after-playlist (pos)
+  "Kill all the songs appearing in the playlist buffer that are
+  located after the end of current playlist."
+  (empc-with-current-playlist
+   (goto-char (point-min))
+   (forward-line pos)
+   (kill-region (line-beginning-position) (point-max))))
+
 (defun empc-playlist-delete-song ()
   "Delete song at point or a range of song if the mark is
   active."
@@ -639,6 +647,7 @@ songs order is kept into an avector `empc-current-playlist'."
     (let ((new-pl (make-vector (empc-status-get empc-object :playlistlength) nil)))
       (dotimes (i (min (length new-pl) (length (empc-playlist empc-object))))
 	(aset new-pl i (aref (empc-playlist empc-object) i)))
+      (empc-playlist-clean-after-playlist (length new-pl))
       (empc-playlist-set empc-object new-pl)
       (while data
 	(let ((id (string-to-number (cdar data)))
