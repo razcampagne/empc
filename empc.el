@@ -210,7 +210,8 @@ SERVICE is the name of the service desired, or an integer specifying
   "Close OBJECT: delete the process and kill the buffers."
   (let ((buffer (process-buffer (empc-process object))))
     (delete-process (empc-process object))
-    (kill-buffer buffer)))
+    (kill-buffer buffer)
+    (kill-buffer (empc-log object))))
 
 (defvar empc-song-format '(time "\t" (if (and artist title) (concat artist " - " title) file))
   "Format used to express songs in playlist and browser.
