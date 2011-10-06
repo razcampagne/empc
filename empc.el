@@ -846,13 +846,13 @@ If the stream process is killed for whatever the reason, pause mpd if possible."
 	   (empc-with-updated-status
 	    (let ((,(if attr attr
 		      (intern command))
-		   (empc-status-get empc-object (quote ,(intern (concat ":" (if state-name
+		   (empc-status-get empc-object ,(intern (concat ":" (if state-name
 										state-name
-									      command)))))))
+									      command))))))
 	      ,(if body
 		   `(progn ,@body)
-		 `(,(intern (concat "empc-send-" command)) ,(if attr attr
-							      (intern command)))))))))))
+		 `(,(intern (concat "empc-send-" command)) (% (1+ ,(if attr attr
+								     (intern command))) 2))))))))))
 
 ;; Querying MPD's status
 (empc-define-simple-command "clearerror")
