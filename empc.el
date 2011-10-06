@@ -431,9 +431,10 @@ According to what is in the diff, several actions can be performed:
   (let ((status-diff (empc-diff-status data))
 	(notify nil))
     (when (plist-get status-diff :songid)
-      (setq notify '(lambda () (when (empc-playlist-songs empc-object)
-				 (empc-echo-song))))
-      (empc-playlist-goto-current-song))
+      (setq notify '(lambda ()
+		      (when (empc-playlist-songs empc-object)
+			(empc-echo-song))
+		      (empc-playlist-goto-current-song))))
     (when (plist-get status-diff :state)
       (if (eq (plist-get status-diff :state) 'play)
 	  (progn
